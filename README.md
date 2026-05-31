@@ -1,64 +1,98 @@
 # Cloud Storage Hotspot Detection
 
-Research codebase and open-source scaffold for multi-dimensional load imbalance detection and hotspot identification in cloud storage systems.
+[![CI](https://github.com/JUNHOJO-korea/cloud-storage-hotspot-detection/actions/workflows/ci.yml/badge.svg)](https://github.com/JUNHOJO-korea/cloud-storage-hotspot-detection/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](./pyproject.toml)
 
-This repository is based on a bachelor thesis project that studies how to detect node-level and port-level hotspots from real industrial monitoring data. The current codebase combines:
+Detect persistent node-level and port-level hotspots in cloud storage systems using:
 
-- a rule-based mainline built on imbalance metrics and robust SPC
-- event-level hotspot construction with culprit analysis
-- a metric-learning extension for structured hotspot state discrimination
-- comparison baselines such as Mahalanobis distance, EWMA SPC, and Random Forest
+- multi-dimensional load imbalance features
+- robust median/MAD-based SPC
+- event-level hotspot construction
+- metric-learning-based hotspot state scoring
 
-## Project Status
+This repository turns a thesis project into a public research engineering codebase for hotspot identification from real-world storage monitoring data.
 
-The original implementation is notebook-first. This repository now includes an open-source project scaffold so the work can evolve into a maintainable Python package.
+## Why This Project
 
-- Research notebooks remain the current source for the full experiment flow
-- `src/hotspot_detection/` contains the initial package skeleton and reusable core utilities
-- `docs/` translates thesis logic into software-facing documentation
-- `examples/` and `tests/` provide a starting point for reproducible development
+In production storage systems, serious hotspots are usually not a single spike in throughput, IOPS, or latency. They are structured states where workload remains concentrated on a small subset of nodes or ports over time.
 
-## Research Scope
+This project models hotspot detection as:
 
-The project models hotspot detection as a structured state recognition problem rather than a single-threshold anomaly problem.
+1. distribution imbalance detection
+2. robust abnormal-state detection
+3. event construction with temporal persistence
+4. structured state discrimination with metric learning
 
-Core ideas:
+The result is not just an anomaly flag. The pipeline is designed to answer:
 
-1. Normalize raw monitoring data from system, node, and port levels into a unified long-table schema.
-2. Construct imbalance metrics such as HHI, Gini, Theil, Top1 Share, and normalized Top1 Share.
-3. Detect abnormal imbalance states using median/MAD-based SPC with persistence and load gating.
-4. Merge valid abnormal points into event-level hotspot segments with tier labels and culprit entities.
-5. Learn a weighted state space for hotspot discrimination using weak supervision derived from the rule-based pipeline.
+- where the hotspot occurs
+- how long it lasts
+- which entities dominate it
+- how strongly it separates from normal states
 
-## Repository Layout
+## What It Does
+
+The full pipeline covers:
+
+- unified long-table modeling for system, node, and port monitoring data
+- imbalance metrics: HHI, Gini, Theil, Top1 Share, normalized Top1 Share
+- robust SPC using median and MAD instead of mean and standard deviation
+- persistence windows and load gating
+- event-level hotspot segmentation
+- culprit entity extraction at peak timestamps
+- weighted metric learning from weak labels derived by the rule-based pipeline
+- comparison against Mahalanobis distance, EWMA SPC, and Random Forest baselines
+
+## Current Results
+
+Based on the current thesis pipeline and saved experiment artifacts:
+
+- `1,076` final hotspot events from the rule-based pipeline
+- `859` learned hotspot episodes in the final node-centered learned pipeline
+- `4,690` learned hotspot points in the final learned scoring output
+
+Current final learned feature weighting emphasizes structural imbalance features:
+
+- strongest learned signals: `raw_imb_gini`, `raw_imb_hhi`, `sev_imb_hhi`, `raw_imb_theil`
+- weak contextual contribution: `load_ratio`
+- near-zero contribution in current run: `active_ratio`
+
+## Method Overview
+
+```text
+Raw monitoring data
+  -> unified long table
+  -> imbalance metric construction
+  -> robust SPC on imbalance streams
+  -> persistence + load gating
+  -> event-level hotspot segments
+  -> point labels from hotspot windows
+  -> metric learning on hotspot vs clean states
+  -> final point scores and hotspot episodes
+```
+
+## Repository Structure
 
 ```text
 .
 ├── README.md
-├── LICENSE
-├── .gitignore
-├── requirements.txt
-├── environment.yml
-├── pyproject.toml
-├── docs/
-├── examples/
-├── notebooks/
-├── src/
-├── tests/
-├── scripts/
-├── artifacts/
-└── data/
+├── docs/                     # project docs and methodology notes
+├── examples/                 # small runnable examples
+├── notebooks/                # notebook guidance and migration target
+├── src/hotspot_detection/    # package skeleton and reusable core utilities
+├── tests/                    # unit tests for extracted logic
+├── scripts/                  # environment and pipeline helpers
+├── sample2.ipynb             # main research notebook
+├── sample.ipynb              # earlier pipeline variant
+└── case experiment.ipynb     # case-family screening notebook
 ```
 
-Important current files:
+## Quick Start
 
-- [sample2.ipynb](/Users/jojunho/PycharmProjects/JupyterProject3/sample2.ipynb): main end-to-end experiment notebook
-- [sample.ipynb](/Users/jojunho/PycharmProjects/JupyterProject3/sample.ipynb): earlier notebook variant
-- [case experiment.ipynb](/Users/jojunho/PycharmProjects/JupyterProject3/case experiment.ipynb): feature-family case screening notebook
+### 1. Install
 
-## Installation
-
-### Option 1: `pip`
+Using `venv`:
 
 ```bash
 python -m venv .venv
@@ -67,7 +101,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-### Option 2: `conda`
+Using `conda`:
 
 ```bash
 conda env create -f environment.yml
@@ -75,68 +109,99 @@ conda activate hotspot-detection
 pip install -e .
 ```
 
-## Quick Start
-
-Check the package wiring:
+### 2. Verify the package
 
 ```bash
 python -m hotspot_detection.cli show-config
 python -m hotspot_detection.cli describe-notebooks
-```
-
-Run example scripts:
-
-```bash
-python examples/run_rule_based_pipeline.py
-python examples/run_metric_learning_pipeline.py
-python examples/inspect_hotspot_case.py
-```
-
-Run tests:
-
-```bash
 pytest
 ```
 
-## Reproducing the Thesis Pipeline
+### 3. Run the research pipeline
 
-The full research pipeline currently lives in notebooks. The recommended order is:
+Open notebooks in this order:
 
-1. [sample2.ipynb](/Users/jojunho/PycharmProjects/JupyterProject3/sample2.ipynb)
-2. [case experiment.ipynb](/Users/jojunho/PycharmProjects/JupyterProject3/case experiment.ipynb)
+1. `sample2.ipynb`
+2. `case experiment.ipynb`
 
-Expected major stages:
+## Main Notebooks
 
-1. Data loading and unified long-table construction
-2. Time binning and metric normalization
-3. Imbalance metric construction
-4. Robust SPC event detection
-5. Hotspot segment generation and labeling
-6. Mahalanobis baseline comparison
-7. Weighted metric learning
-8. Final scoring, episode extraction, and validation
+### `sample2.ipynb`
+
+Primary end-to-end notebook containing:
+
+- data loading and normalization
+- imbalance metric generation
+- robust SPC
+- hotspot segment construction
+- Mahalanobis baseline
+- weighted metric learning
+- final scoring, validation, and episode extraction
+
+### `sample.ipynb`
+
+Earlier experimental notebook with more visibly separated node and port blocks.
+
+### `case experiment.ipynb`
+
+Follow-up notebook for case-family screening and alternative feature space comparison.
 
 ## Data
 
-The original industrial monitoring data are not included in this repository.
+The original industrial monitoring data are private and are not included in this repository.
 
-See [docs/data_schema.md](/Users/jojunho/PycharmProjects/JupyterProject3/docs/data_schema.md) for the expected input schema and [data/README.md](/Users/jojunho/PycharmProjects/JupyterProject3/data/README.md) for repository policy.
+Expected local raw inputs:
+
+- `data_system.parquet`
+- `data_node.parquet`
+- `data_port.parquet`
+
+See:
+
+- [docs/data_schema.md](docs/data_schema.md)
+- [data/README.md](data/README.md)
+
+If this project is extended for broader public use, the next recommended step is to add:
+
+- a synthetic demo dataset
+- a schema validator
+- a deterministic end-to-end sample run
 
 ## Documentation
 
-- [project_overview.md](/Users/jojunho/PycharmProjects/JupyterProject3/docs/project_overview.md)
-- [methodology.md](/Users/jojunho/PycharmProjects/JupyterProject3/docs/methodology.md)
-- [data_schema.md](/Users/jojunho/PycharmProjects/JupyterProject3/docs/data_schema.md)
-- [evaluation.md](/Users/jojunho/PycharmProjects/JupyterProject3/docs/evaluation.md)
-- [reproducibility.md](/Users/jojunho/PycharmProjects/JupyterProject3/docs/reproducibility.md)
+- [Project Overview](docs/project_overview.md)
+- [Methodology](docs/methodology.md)
+- [Data Schema](docs/data_schema.md)
+- [Evaluation](docs/evaluation.md)
+- [Reproducibility](docs/reproducibility.md)
 
-## Thesis Reference
+## Project Status
 
-Local thesis file:
+This repository is in a transition phase:
 
-- [毕业设计_JUNHO JO.pdf](/Users/jojunho/Documents/4-1/졸업논문/논문&자료/最终报告/论文/毕业设计_JUNHO JO.pdf)
+- the full scientific pipeline is still notebook-first
+- the reusable package layer in `src/` has started but is not yet complete
+- CI and tests currently cover the extracted utility layer, not the full notebook pipeline
 
-Suggested citation format:
+That means this repository is already useful for:
+
+- studying the methodology
+- reproducing the notebook-based workflow locally
+- turning the codebase into a stronger research engineering project
+
+It is not yet a polished plug-and-play library.
+
+## Roadmap
+
+- migrate core notebook logic into `src/hotspot_detection/`
+- standardize artifact contracts and evaluation keys
+- add regression tests for hotspot labeling and episode extraction
+- provide synthetic or sanitized demo data
+- expose a single CLI pipeline runner
+
+## Citation
+
+If you use this project or build on the thesis, cite:
 
 ```bibtex
 @thesis{jo2026hotspot,
@@ -147,18 +212,15 @@ Suggested citation format:
 }
 ```
 
-## Current Limitations
+## Thesis Reference
 
-- The full experiment pipeline is still notebook-first
-- Industrial raw data are private
-- Evaluation keys and validation protocols need further standardization
-- The package in `src/` is an initial extraction layer, not yet the full migrated pipeline
+The thesis PDF is currently stored locally and is not committed to this repository.
 
-## Roadmap
+Recommended follow-up:
 
-- migrate notebook logic into importable modules
-- standardize configs and artifact naming
-- add regression tests for labeling and episode extraction
-- expose a single CLI pipeline entrypoint
-- provide sanitized demo data or a synthetic benchmark
+- add a public thesis link if redistribution is allowed
+- or add a short `docs/thesis_summary.md` page for repository readers
 
+## License
+
+Released under the [MIT License](./LICENSE).
