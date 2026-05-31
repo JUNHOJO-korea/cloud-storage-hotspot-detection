@@ -1,0 +1,47 @@
+<svg width="1400" height="360" viewBox="0 0 1400 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1400" height="360" fill="#F7F6F2"/>
+  <text x="70" y="68" fill="#17202A" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Pipeline Overview</text>
+  <text x="70" y="102" fill="#4B5563" font-family="Arial, Helvetica, sans-serif" font-size="18">From raw monitoring streams to event-level hotspots and learned hotspot scoring</text>
+
+  <rect x="70" y="140" width="190" height="120" rx="22" fill="#103D60"/>
+  <text x="95" y="183" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Raw Monitoring</text>
+  <text x="95" y="213" fill="#D7E6F2" font-family="Arial, Helvetica, sans-serif" font-size="16">system / node / port</text>
+  <text x="95" y="238" fill="#D7E6F2" font-family="Arial, Helvetica, sans-serif" font-size="16">throughput, IOPS,</text>
+  <text x="95" y="260" fill="#D7E6F2" font-family="Arial, Helvetica, sans-serif" font-size="16">latency, CPU</text>
+
+  <rect x="320" y="140" width="190" height="120" rx="22" fill="#0E7490"/>
+  <text x="348" y="183" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Long Table</text>
+  <text x="348" y="213" fill="#D8F3F8" font-family="Arial, Helvetica, sans-serif" font-size="16">timestamp, stg_ip,</text>
+  <text x="348" y="238" fill="#D8F3F8" font-family="Arial, Helvetica, sans-serif" font-size="16">level, entity, rw,</text>
+  <text x="348" y="260" fill="#D8F3F8" font-family="Arial, Helvetica, sans-serif" font-size="16">metric, value</text>
+
+  <rect x="570" y="140" width="220" height="120" rx="22" fill="#2E7D32"/>
+  <text x="598" y="183" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Imbalance Features</text>
+  <text x="598" y="213" fill="#DFF3E3" font-family="Arial, Helvetica, sans-serif" font-size="16">HHI, Gini, Theil,</text>
+  <text x="598" y="238" fill="#DFF3E3" font-family="Arial, Helvetica, sans-serif" font-size="16">Top1 Share,</text>
+  <text x="598" y="260" fill="#DFF3E3" font-family="Arial, Helvetica, sans-serif" font-size="16">normalized Top1 Share</text>
+
+  <rect x="850" y="140" width="200" height="120" rx="22" fill="#A16207"/>
+  <text x="882" y="183" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Robust SPC</text>
+  <text x="882" y="213" fill="#FFF3D6" font-family="Arial, Helvetica, sans-serif" font-size="16">median / MAD</text>
+  <text x="882" y="238" fill="#FFF3D6" font-family="Arial, Helvetica, sans-serif" font-size="16">persistence window</text>
+  <text x="882" y="260" fill="#FFF3D6" font-family="Arial, Helvetica, sans-serif" font-size="16">load gating</text>
+
+  <rect x="1110" y="140" width="220" height="120" rx="22" fill="#7C2D12"/>
+  <text x="1138" y="183" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Hotspot Outputs</text>
+  <text x="1138" y="213" fill="#FDE1D6" font-family="Arial, Helvetica, sans-serif" font-size="16">segments, tiers,</text>
+  <text x="1138" y="238" fill="#FDE1D6" font-family="Arial, Helvetica, sans-serif" font-size="16">culprit entities,</text>
+  <text x="1138" y="260" fill="#FDE1D6" font-family="Arial, Helvetica, sans-serif" font-size="16">learned point scores</text>
+
+  <path d="M260 200H308" stroke="#17202A" stroke-width="4" stroke-linecap="round"/>
+  <path d="M510 200H558" stroke="#17202A" stroke-width="4" stroke-linecap="round"/>
+  <path d="M790 200H838" stroke="#17202A" stroke-width="4" stroke-linecap="round"/>
+  <path d="M1050 200H1098" stroke="#17202A" stroke-width="4" stroke-linecap="round"/>
+
+  <path d="M297 188L320 200L297 212" fill="#17202A"/>
+  <path d="M547 188L570 200L547 212" fill="#17202A"/>
+  <path d="M827 188L850 200L827 212" fill="#17202A"/>
+  <path d="M1087 188L1110 200L1087 212" fill="#17202A"/>
+
+  <text x="822" y="320" fill="#4B5563" font-family="Arial, Helvetica, sans-serif" font-size="16">Rule-based mainline + metric-learning extension</text>
+</svg>

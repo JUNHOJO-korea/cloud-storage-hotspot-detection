@@ -1,0 +1,17 @@
+<svg width="1400" height="320" viewBox="0 0 1400 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1400" height="320" fill="#FBFAF7"/>
+  <text x="70" y="65" fill="#17202A" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Current Results Snapshot</text>
+  <text x="70" y="98" fill="#4B5563" font-family="Arial, Helvetica, sans-serif" font-size="18">Artifact-backed numbers from the current thesis pipeline</text>
+
+  <rect x="70" y="138" width="380" height="120" rx="24" fill="#123B5D"/>
+  <text x="102" y="180" fill="#D4E7F6" font-family="Arial, Helvetica, sans-serif" font-size="18">Rule-based final hotspot events</text>
+  <text x="102" y="228" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700">1,076</text>
+
+  <rect x="510" y="138" width="380" height="120" rx="24" fill="#7C2D12"/>
+  <text x="542" y="180" fill="#FBD9CF" font-family="Arial, Helvetica, sans-serif" font-size="18">Learned hotspot episodes</text>
+  <text x="542" y="228" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700">859</text>
+
+  <rect x="950" y="138" width="380" height="120" rx="24" fill="#2E7D32"/>
+  <text x="982" y="180" fill="#D9F0DC" font-family="Arial, Helvetica, sans-serif" font-size="18">Learned hotspot points</text>
+  <text x="982" y="228" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700">4,690</text>
+</svg>

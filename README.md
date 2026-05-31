@@ -13,6 +13,10 @@ Detect persistent node-level and port-level hotspots in cloud storage systems us
 
 This repository turns a thesis project into a public research engineering codebase for hotspot identification from real-world storage monitoring data.
 
+![Pipeline Overview](docs/figures/pipeline_overview.svg)
+
+![Results Snapshot](docs/figures/results_snapshot.svg)
+
 ## Why This Project
 
 In production storage systems, serious hotspots are usually not a single spike in throughput, IOPS, or latency. They are structured states where workload remains concentrated on a small subset of nodes or ports over time.
@@ -57,6 +61,22 @@ Current final learned feature weighting emphasizes structural imbalance features
 - strongest learned signals: `raw_imb_gini`, `raw_imb_hhi`, `sev_imb_hhi`, `raw_imb_theil`
 - weak contextual contribution: `load_ratio`
 - near-zero contribution in current run: `active_ratio`
+
+## Visual Examples
+
+Representative outputs already generated from the thesis pipeline:
+
+### SPC control chart on imbalance stream
+
+![SPC Chart Example](docs/figures/spc_chart_example.png)
+
+### Multi-metric imbalance comparison
+
+![Imbalance Comparison Example](docs/figures/imbalance_compare_example.png)
+
+### Evaluation summary figure
+
+![Evaluation Summary](docs/figures/eval_pr_f1.png)
 
 ## Method Overview
 
