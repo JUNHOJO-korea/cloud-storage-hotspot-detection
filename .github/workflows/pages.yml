@@ -29,6 +29,8 @@ jobs:
 
       - name: Configure Pages (auto-enable)
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload web/ as Pages artifact
         uses: actions/upload-pages-artifact@v3
