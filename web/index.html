@@ -1,0 +1,3592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>云计算存储智能均衡调度分析系统 · 项目展览版</title>
+<style>
+/* =========================================================
+   GLOBAL TOKENS
+   ========================================================= */
+:root{
+  --bg:#070b16; --panel:#0e162b; --panel2:#10172d; --line:#2a3a64; --line2:#3d5b99;
+  --text:#ecf2ff; --muted:#9aa8c7;
+  --blue:#4f8cff; --cyan:#23c7df; --red:#ff5670; --orange:#ffb84d;
+  --green:#28d17c; --purple:#8b6cff; --yellow:#ffe066;
+  --shadow:0 18px 45px rgba(0,0,0,.35);
+  --mono:"SFMono-Regular",Consolas,monospace;
+  --sans:Inter,"PingFang SC","Microsoft YaHei",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(circle at 14% 6%,#112350 0,transparent 35%),
+             radial-gradient(circle at 85% 92%,#25154e 0,transparent 40%),var(--bg);
+  color:var(--text); font-family:var(--sans); font-size:14px; min-height:100vh;
+}
+.app{max-width:1860px;margin:0 auto;padding:14px 22px 28px}
+
+/* =========================================================
+   HEADER + TABS
+   ========================================================= */
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  border:1px solid var(--line);
+  background:linear-gradient(135deg,rgba(79,140,255,.13),rgba(139,108,255,.06));
+  border-radius:16px;padding:12px 20px;margin-bottom:10px;
+}
+.header h1{margin:0;font-size:20px;font-weight:800}
+.header h1 span{color:#8fb3ff}
+.header p{margin:3px 0 0;color:var(--muted);font-size:12px}
+.actions{display:flex;gap:8px}
+.btn{
+  border:none;border-radius:10px;padding:8px 14px;color:#fff;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  font-weight:700;cursor:pointer;font-size:12.5px;transition:filter .2s;
+}
+.btn.secondary{background:#14203b;border:1px solid var(--line);color:#c9d7ff}
+.btn:hover{filter:brightness(1.15)}
+.btn:active{filter:brightness(.92)}
+
+.tabs{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:10px}
+.tab{
+  border:1px solid var(--line);border-radius:12px;background:rgba(18,29,54,.88);
+  padding:9px 11px;cursor:pointer;display:flex;gap:9px;align-items:center;
+  min-height:54px;transition:all .25s;
+}
+.tab .num{
+  height:30px;width:30px;border-radius:8px;background:#0b1328;
+  border:1px solid var(--line2);display:grid;place-items:center;
+  font-family:var(--mono);font-weight:800;color:#8fb3ff;flex-shrink:0;font-size:13px;
+}
+.tab .t{font-size:12.5px;font-weight:800;line-height:1.2}
+.tab .s{font-size:10.5px;color:var(--muted);margin-top:2px}
+.tab.active{border-color:var(--blue);background:linear-gradient(135deg,rgba(79,140,255,.28),rgba(139,108,255,.12))}
+.tab.active .num{background:var(--blue);color:#fff}
+.tab.playing{border-color:var(--orange);box-shadow:0 0 14px rgba(255,184,77,.35)}
+
+/* =========================================================
+   PANEL + STAGE FRAME
+   ========================================================= */
+.panel{display:none}.panel.active{display:block}
+.stage{
+  border:1px solid var(--line);background:rgba(11,18,35,.84);
+  border-radius:16px;overflow:hidden;box-shadow:var(--shadow);
+}
+.stage-title{
+  height:48px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;border-bottom:1px solid var(--line);background:rgba(8,13,26,.7);
+}
+.stage-title h2{margin:0;font-size:16px;font-weight:800}
+.stage-title .right{color:var(--muted);font-size:11.5px;display:flex;gap:8px;align-items:center}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;border-radius:999px;
+  padding:4px 9px;background:rgba(79,140,255,.16);border:1px solid rgba(79,140,255,.35);
+  color:#bdd0ff;font-family:var(--mono);font-size:11px;
+}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--blue);display:inline-block}
+.dot.red{background:var(--red)}.dot.green{background:var(--green)}
+.dot.orange{background:var(--orange)}.dot.purple{background:var(--purple)}
+.dot.yellow{background:var(--yellow)}
+
+/* main visual area: large + grid background */
+.visual{
+  position:relative;height:680px;padding:16px 20px;
+  background-image:linear-gradient(rgba(79,140,255,.045) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(79,140,255,.045) 1px,transparent 1px);
+  background-size:48px 48px;overflow:hidden;
+}
+.stage-badge{
+  position:absolute;right:20px;top:10px;font-size:22px;font-weight:900;
+  letter-spacing:2px;color:#fff;text-align:right;z-index:5;pointer-events:none;
+  text-shadow:0 2px 6px rgba(0,0,0,.55);
+}
+.stage-badge small{display:block;color:var(--muted);font-size:10.5px;letter-spacing:0;font-weight:600}
+
+/* =========================================================
+   PRESENTATION CONTROL BAR  (unified play/pause/step/replay)
+   ========================================================= */
+.ctrl{
+  display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;
+  padding:10px 16px;border-top:1px solid var(--line);background:rgba(8,13,26,.85);
+}
+.ctrl-btns{display:flex;gap:6px;flex-wrap:nowrap}
+.ctrl-btn{
+  width:34px;height:34px;border-radius:8px;border:1px solid var(--line2);
+  background:#101c36;color:#cfe0ff;cursor:pointer;font-size:14px;
+  display:grid;place-items:center;font-family:var(--mono);transition:all .2s;
+}
+.ctrl-btn.primary{
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  border:none;color:#fff;width:auto;padding:0 14px;font-weight:800;
+}
+.ctrl-btn:hover{border-color:var(--blue);color:#fff}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed}
+.ctrl-btn.primary:disabled{filter:grayscale(.5)}
+.ctrl-narration{
+  display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;
+  border:1px solid var(--line);border-radius:10px;background:#0b1328;padding:8px 12px;
+  min-height:48px;
+}
+.ctrl-step{
+  font-family:var(--mono);font-size:12px;font-weight:800;color:#8fb3ff;
+  letter-spacing:.6px;white-space:nowrap;border-right:1px solid var(--line);padding-right:12px;
+}
+.ctrl-step .s-now{color:#fff;font-size:14px}
+.ctrl-step .s-tot{color:var(--muted)}
+.ctrl-text{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ctrl-title{font-size:13px;font-weight:800;color:#fff}
+.ctrl-narr{font-size:11.5px;color:#bdd0ff;line-height:1.45}
+.ctrl-mode{
+  font-family:var(--mono);font-size:10.5px;color:var(--muted);font-weight:700;
+  border:1px solid var(--line);background:#0b1328;border-radius:8px;padding:4px 10px;
+  white-space:nowrap;
+}
+.ctrl-mode b{color:#a8f3cb}
+
+/* =========================================================
+   IO SUMMARY (Input / Method / Output / Next Use) — collapsible
+   ========================================================= */
+.iobar{border-top:1px solid var(--line);background:#070b16}
+.iobar-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 16px;cursor:pointer;user-select:none;
+}
+.iobar-head .t{font-size:11.5px;font-weight:800;color:#8fb3ff;letter-spacing:.5px;display:flex;gap:8px;align-items:center}
+.iobar-head .t .chev{transition:transform .3s;display:inline-block;font-size:10px}
+.iobar-head .hint{font-size:10.5px;color:var(--muted)}
+.iomn{
+  display:grid;grid-template-columns:1fr 1.2fr 1fr 1fr;gap:8px;
+  padding:4px 14px 12px;
+  max-height:320px;overflow:hidden;transition:max-height .35s ease,padding .35s ease,opacity .3s;
+}
+/* collapsed state (default for non-logic stages) */
+.iomn.collapsed{max-height:0;padding-top:0;padding-bottom:0;opacity:0}
+.iobar-head.collapsed .chev{transform:rotate(-90deg)}
+.io-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:11px;
+  padding:9px 12px;min-height:88px;display:flex;flex-direction:column;
+}
+.io-card .lbl{
+  font-size:10px;font-weight:900;letter-spacing:1.1px;color:#8fb3ff;
+  text-transform:uppercase;margin-bottom:5px;
+}
+.io-card .body{color:#d8e4ff;font-size:12px;line-height:1.55;flex:1}
+.io-card .formula{
+  font-family:var(--mono);font-size:11px;background:#071022;border:1px solid #27406e;
+  border-radius:7px;padding:6px 9px;color:#cfe0ff;margin-top:5px;line-height:1.5;white-space:pre-wrap;
+}
+.io-card .kpis{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.kpi-pill{
+  font-family:var(--mono);font-size:10.5px;font-weight:700;border-radius:6px;
+  padding:3px 7px;background:rgba(79,140,255,.16);border:1px solid #2b497c;color:#cfe0ff;
+}
+.kpi-pill.red{background:rgba(255,86,112,.15);border-color:#7c2a3c;color:#ffb6c1}
+.kpi-pill.green{background:rgba(40,209,124,.15);border-color:#2a7c4a;color:#a8f3cb}
+.kpi-pill.orange{background:rgba(255,184,77,.15);border-color:#7c5a2a;color:#ffd9a3}
+
+/* =========================================================
+   GENERIC ANIMATIONS
+   ========================================================= */
+@keyframes pulseRed{50%{box-shadow:0 0 28px rgba(255,86,112,.7)}}
+@keyframes volPulse{50%{transform:scale(1.06)}}
+@keyframes arrPulse{50%{transform:translateX(6px) scale(1.05);opacity:.85}}
+@keyframes flowDash{to{stroke-dashoffset:-30}}
+@keyframes glowFade{0%,100%{filter:brightness(1)}50%{filter:brightness(1.5)}}
+
+/* =========================================================
+   STAGE 0 — OVERVIEW
+   ========================================================= */
+.ov-wrap{position:absolute;inset:14px 18px;display:grid;grid-template-rows:auto 1fr;gap:10px}
+.ov-flow{height:78px;display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.ov-step{
+  border-radius:12px;border:1.5px solid var(--line2);
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  background:rgba(15,25,47,.85);position:relative;font-weight:800;transition:all .5s;
+}
+.ov-step .n{font-family:var(--mono);font-size:10.5px;color:#8fb3ff;letter-spacing:1px}
+.ov-step .ttl{font-size:13px;margin-top:2px}
+.ov-step .desc{font-size:10.5px;color:var(--muted);margin-top:2px;font-weight:500}
+.ov-step.s0{border-color:var(--blue)}
+.ov-step.s1{border-color:var(--red)}
+.ov-step.s2{border-color:var(--yellow)}
+.ov-step.s3{border-color:var(--purple)}
+.ov-step.s4{border-color:var(--green)}
+.ov-step.lit{transform:translateY(-3px);box-shadow:0 8px 22px rgba(79,140,255,.35)}
+.ov-step::after{
+  content:"→";position:absolute;right:-12px;top:50%;transform:translateY(-50%);
+  color:var(--blue);font-size:20px;font-weight:900;z-index:2;
+}
+.ov-step:last-child::after{display:none}
+
+.ov-arch{display:grid;grid-template-columns:240px 1fr;gap:12px;min-height:0}
+.ov-cloud{
+  border:1.5px solid var(--line);border-radius:14px;background:rgba(13,22,43,.7);
+  padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+}
+.ov-cloud .biz{
+  width:140px;height:72px;background:linear-gradient(180deg,#35a8ff,#20c6f0);
+  border-radius:50% 50% 45% 45%/60% 60% 40% 40%;display:grid;place-items:center;
+  color:#06203a;font-weight:900;font-size:13px;box-shadow:0 14px 26px rgba(32,198,240,.3);
+}
+.ov-cloud .lb-box{
+  width:120px;height:54px;border:2.5px solid #6694ff;border-radius:12px;
+  background:rgba(79,140,255,.14);display:grid;place-items:center;
+  text-align:center;font-weight:900;color:#cfe0ff;font-size:12.5px;
+}
+.ov-cloud .arr{font-size:20px;color:var(--blue);font-weight:900}
+.ov-pool{
+  border:1.5px solid var(--line);border-radius:14px;background:rgba(13,22,43,.7);
+  padding:12px;display:grid;grid-template-rows:auto auto auto auto auto;gap:9px;overflow:hidden;
+}
+.ov-pool h4{margin:0;font-size:13px;color:#cfe0ff}
+.ov-row{
+  border:1px dashed rgba(143,179,255,.3);border-radius:9px;padding:11px 9px 7px;position:relative;
+  transition:all .5s;
+}
+.ov-row.lit{border-color:var(--blue);box-shadow:0 0 18px rgba(79,140,255,.25);background:rgba(79,140,255,.05)}
+.ov-row .rt{
+  position:absolute;left:9px;top:-9px;background:#111b33;padding:2px 7px;
+  border:1px solid #2b497c;border-radius:999px;font-size:10.5px;font-weight:800;color:#bcd0ff;
+}
+.ov-sys{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}
+.ov-sys .k{
+  font-family:var(--mono);font-size:11px;font-weight:800;padding:5px 10px;
+  border-radius:7px;background:#152341;border:1px solid #395b99;color:#cfe0ff;
+}
+.ov-nodes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ov-nb{
+  height:42px;border:2px solid var(--green);border-radius:10px;background:#111b32;
+  display:grid;place-items:center;font-weight:800;font-size:11.5px;text-align:center;transition:all .5s;
+}
+.ov-nb.hot{border-color:var(--red);box-shadow:0 0 18px rgba(255,86,112,.4);animation:pulseRed 1.6s infinite;color:#ffb6c1}
+.ov-ports{display:grid;grid-template-columns:repeat(8,1fr);gap:7px}
+.ov-pt{
+  height:30px;border:1.5px solid #27b8d6;border-radius:7px;background:#102d41;
+  display:grid;place-items:center;color:#cdf7ff;font-weight:800;font-size:10.5px;transition:all .5s;
+}
+.ov-pt.hot{border-color:var(--red);background:rgba(255,86,112,.12);box-shadow:0 0 12px rgba(255,86,112,.45)}
+.ov-vols{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
+.ov-vl{
+  height:24px;border:1.5px solid var(--purple);border-radius:6px;
+  background:linear-gradient(135deg,#2b2257,#33266a);
+  display:grid;place-items:center;font-weight:800;font-size:10px;transition:all .5s;
+}
+.ov-vl.hot{border-color:var(--red);box-shadow:0 0 11px rgba(255,86,112,.5);animation:volPulse 1.2s infinite}
+
+/* =========================================================
+   STAGE 1 — DETECT (topology + timeline + metrics + result)
+   ========================================================= */
+.det-wrap{position:absolute;inset:14px 18px;display:grid;grid-template-rows:auto 1fr;gap:10px}
+
+/* timeline header */
+.det-timeline{
+  display:flex;align-items:center;gap:12px;padding:8px 14px;
+  border:1px solid var(--line);border-radius:10px;background:rgba(13,22,43,.7);
+}
+.det-timeline .lbl{font-size:11px;color:#8fb3ff;font-weight:800;letter-spacing:1px;flex-shrink:0}
+.det-timeline .track{
+  flex:1;height:8px;background:#0b1328;border-radius:999px;position:relative;overflow:hidden;
+}
+.det-timeline .fill{
+  position:absolute;left:0;top:0;height:100%;
+  background:linear-gradient(90deg,#4f8cff 0%,#ffe066 35%,#ffb84d 60%,#ff5670 100%);
+  border-radius:999px;width:0%;transition:width .55s ease;
+}
+.det-timeline .ticks{position:absolute;inset:0;display:grid;grid-template-columns:repeat(5,1fr)}
+.det-timeline .ticks span{border-right:1px dashed rgba(143,179,255,.18)}
+.det-timeline .lab{font-family:var(--mono);font-size:10.5px;color:#cfe0ff;min-width:70px;text-align:center}
+.det-timeline .lab.t0{color:#8fb3ff}
+.det-timeline .lab.tn{color:#ff5670}
+.det-timeline .markers{position:absolute;inset:0;pointer-events:none}
+.det-timeline .marker{
+  position:absolute;top:-3px;width:2px;height:14px;background:#fff;
+  transition:left .5s;box-shadow:0 0 6px #fff;
+}
+
+.det-main{display:grid;grid-template-columns:300px 1fr 320px;gap:10px;min-height:0}
+
+/* INPUT column */
+.det-input{
+  border:1.5px solid var(--line);border-radius:12px;background:rgba(13,22,43,.7);
+  padding:11px;display:flex;flex-direction:column;gap:8px;min-height:0;
+}
+.det-input h5{margin:0;font-size:11.5px;color:#8fb3ff;letter-spacing:1px}
+.det-cloud{
+  height:54px;background:linear-gradient(180deg,#35a8ff,#20c6f0);
+  border-radius:50% 50% 40% 40%/60% 60% 40% 40%;
+  display:grid;place-items:center;color:#06203a;font-weight:900;font-size:12px;margin:0 14px;
+}
+.det-arrow{text-align:center;color:var(--blue);font-size:16px;font-weight:900}
+.det-lb{
+  height:38px;border:2px solid #6694ff;border-radius:9px;background:rgba(79,140,255,.14);
+  display:grid;place-items:center;font-weight:900;color:#cfe0ff;font-size:11.5px;
+}
+.det-formula{
+  font-family:var(--mono);font-size:10.5px;background:#071022;border:1px solid #27406e;
+  border-radius:7px;padding:7px 8px;color:#cfe0ff;line-height:1.55;
+}
+.det-formula .fl-lbl{color:#8fb3ff;font-weight:800}
+
+/* CENTER topology */
+.det-topo{
+  position:relative;border:1.5px solid #4770c7;border-radius:12px;background:rgba(10,17,35,.72);
+  padding:12px;display:grid;grid-template-rows:auto 1fr 1fr 1fr;gap:7px;overflow:hidden;min-height:0;
+}
+.det-topo h4{margin:0;font-size:12.5px;color:#cfe0ff}
+.det-row{
+  position:relative;border:1px dashed rgba(143,179,255,.32);border-radius:9px;
+  padding:13px 9px 7px;transition:all .5s;
+}
+.det-row .rt{
+  position:absolute;left:9px;top:-9px;background:#111b33;padding:2px 7px;
+  border:1px solid #2b497c;border-radius:999px;font-size:10px;font-weight:800;color:#bcd0ff;
+}
+.det-row.lit{border-color:var(--blue);background:rgba(79,140,255,.04)}
+.det-row.r-sys{padding:13px 9px 9px}
+.det-sys{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center}
+.det-sys .k{
+  font-family:var(--mono);font-size:10.5px;font-weight:800;padding:4px 8px;
+  border-radius:7px;background:#152341;border:1px solid #395b99;color:#cfe0ff;
+  transition:all .4s;
+}
+.det-sys .k.alert{background:rgba(255,86,112,.18);border-color:#7c2a3c;color:#ffb6c1}
+.det-sys .k.flash{animation:glowFade .8s ease-in-out 3}
+.det-row.r-node{display:flex;gap:10px;align-items:center;justify-content:center}
+.det-node{
+  flex:1;max-width:165px;height:54px;border:2px solid var(--green);border-radius:11px;
+  background:#111b32;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:all .8s;position:relative;
+}
+.det-node .nm{font-size:12.5px;font-weight:900}
+.det-node .ld{font-size:10.5px;color:var(--muted);margin-top:2px;font-family:var(--mono)}
+.det-node[data-state="warm"]{border-color:var(--orange);box-shadow:0 0 14px rgba(255,184,77,.35)}
+.det-node[data-state="warm"] .ld{color:#ffd9a3}
+.det-node[data-state="hot"]{border-color:var(--red);box-shadow:0 0 24px rgba(255,86,112,.55);animation:pulseRed 1.4s infinite}
+.det-node[data-state="hot"] .ld{color:#ffb6c1}
+.det-node[data-state="hot"]::after{content:"🔥";position:absolute;right:6px;top:3px;font-size:13px}
+
+.det-row.r-port{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}
+.det-port{
+  flex:1;min-width:48px;max-width:68px;height:32px;border:2px solid #27b8d6;border-radius:8px;
+  background:#102d41;display:grid;place-items:center;color:#cdf7ff;font-weight:800;font-size:11px;
+  transition:all .5s;
+}
+.det-port[data-state="warm"]{border-color:var(--orange);background:rgba(255,184,77,.1);box-shadow:0 0 11px rgba(255,184,77,.35)}
+.det-port[data-state="hot"]{border-color:var(--red);background:rgba(255,86,112,.12);box-shadow:0 0 16px rgba(255,86,112,.55)}
+
+/* request flow dots */
+.det-flow{position:absolute;inset:0;pointer-events:none;z-index:3}
+
+/* RIGHT result panel */
+.det-result{
+  border:1.5px solid var(--orange);border-radius:12px;background:rgba(13,22,43,.7);
+  padding:11px;display:flex;flex-direction:column;gap:8px;min-height:0;
+  position:relative;opacity:.35;transition:all .5s;
+}
+.det-result.ready{opacity:1;box-shadow:0 0 22px rgba(255,184,77,.25)}
+.det-result h5{
+  margin:0;font-size:11.5px;color:#ffd9a3;letter-spacing:1px;
+  display:flex;align-items:center;gap:6px;
+}
+.det-result h5::before{content:"⚠";font-size:14px}
+.det-result .stamp{
+  position:absolute;right:9px;top:7px;font-family:var(--mono);font-size:10px;
+  color:#8fb3ff;border:1px solid #2b497c;padding:2px 6px;border-radius:6px;
+}
+.det-finding{
+  border:1px solid #7c5a2a;border-radius:9px;background:rgba(255,184,77,.07);
+  padding:7px 10px;display:flex;flex-direction:column;gap:2px;
+}
+.det-finding .ttl{font-size:10px;color:#8fb3ff;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
+.det-finding .v{font-family:var(--mono);font-size:12.5px;font-weight:800;color:#ffd9a3}
+.det-finding .sub{font-size:10px;color:var(--muted)}
+.det-result .vols{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.det-result .vol{
+  height:26px;border:1.5px solid var(--purple);border-radius:6px;
+  background:linear-gradient(135deg,#2b2257,#33266a);
+  display:grid;place-items:center;font-weight:800;font-size:10px;
+}
+.det-result .vol.hot{border-color:var(--red);box-shadow:0 0 11px rgba(255,86,112,.55);animation:volPulse 1.2s infinite}
+.det-result .ml{
+  border:1px solid #5b3d99;border-radius:9px;background:rgba(139,108,255,.08);
+  padding:7px 10px;display:flex;flex-direction:column;gap:3px;
+}
+.det-result .ml .ttl{font-size:10px;color:#cbb6ff;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
+.det-result .ml .row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:#cfe0ff}
+.det-result .ml .row b{color:#cbb6ff}
+
+/* =========================================================
+   STAGE 2 — FORECAST (time series + branch routing + future)
+   ========================================================= */
+.fc-wrap{position:absolute;inset:14px 18px;display:grid;grid-template-columns:230px 1fr 320px;gap:10px}
+.fc-col{
+  border:1.5px solid var(--line);border-radius:12px;background:rgba(13,22,43,.7);
+  padding:11px;display:flex;flex-direction:column;gap:8px;overflow:hidden;min-height:0;
+}
+.fc-col h5{margin:0;font-size:11.5px;color:#8fb3ff;letter-spacing:1px}
+.fc-col p.dim{margin:0;font-size:10.5px;color:var(--muted);line-height:1.45}
+
+.fc-vols{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.fc-vol{
+  height:42px;border:1.5px solid var(--line2);border-radius:9px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-weight:800;font-size:11.5px;background:#101c36;cursor:pointer;transition:all .25s;
+}
+.fc-vol .lab{font-size:9px;color:var(--muted);font-weight:600;margin-top:1px}
+.fc-vol.selected{
+  border-color:var(--orange);box-shadow:0 0 14px rgba(255,184,77,.45);
+  background:rgba(255,184,77,.08);transform:scale(1.04);
+}
+
+.fc-routes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.fc-route{
+  border:1px solid #35558e;border-radius:9px;background:#101c36;padding:7px 9px;
+  font-size:11px;transition:all .3s;
+}
+.fc-route h6{margin:0 0 2px;font-size:11.5px;font-weight:800;color:#fff}
+.fc-route p{margin:0;font-size:10px;color:var(--muted);line-height:1.4}
+.fc-route.active{
+  border-color:var(--orange);box-shadow:0 0 14px rgba(255,184,77,.4);
+  background:rgba(255,184,77,.07);
+}
+.fc-route .tag{
+  display:inline-block;font-family:var(--mono);font-size:9px;padding:2px 5px;
+  border-radius:5px;background:rgba(79,140,255,.18);color:#bdd0ff;margin-bottom:2px;
+}
+
+.fc-mainchart{
+  flex:1;border:1px solid var(--line);border-radius:10px;background:#071022;
+  padding:9px;min-height:200px;position:relative;
+}
+.fc-mainchart svg{width:100%;height:100%}
+.fc-mainchart .chart-title{
+  position:absolute;left:14px;top:7px;font-size:11px;font-weight:800;color:#cfe0ff;
+}
+.fc-mainchart .chart-leg{
+  position:absolute;right:14px;top:7px;display:flex;gap:10px;font-size:10px;color:var(--muted);
+}
+.fc-mainchart .chart-leg span{display:flex;gap:4px;align-items:center}
+.fc-mainchart .chart-leg i{width:14px;height:2px;display:inline-block}
+
+.fc-features{
+  border:1px solid var(--line);border-radius:9px;background:#0b1328;padding:7px 10px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:5px;
+}
+.fc-feat{
+  font-family:var(--mono);font-size:10px;color:#cfe0ff;
+  display:flex;justify-content:space-between;
+}
+.fc-feat b{color:var(--cyan)}
+
+.fc-out-list{display:flex;flex-direction:column;gap:7px}
+.fc-out-item{
+  border:1px solid #35558e;border-radius:9px;background:#101c36;padding:9px 11px;
+  transition:all .4s;
+}
+.fc-out-item.lit{border-color:var(--orange);background:rgba(255,184,77,.06)}
+.fc-out-item .nm{
+  font-weight:800;font-size:12.5px;color:#fff;display:flex;justify-content:space-between;align-items:center;
+}
+.fc-out-item .nm .badge{
+  font-family:var(--mono);font-size:9.5px;padding:2px 6px;border-radius:5px;
+  background:rgba(255,184,77,.18);color:#ffd9a3;border:1px solid #7c5a2a;
+}
+.fc-out-item .vv{font-family:var(--mono);font-size:16px;font-weight:900;color:var(--orange);margin-top:3px}
+.fc-out-item .tip{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* =========================================================
+   STAGE 3 — SCHEDULE (cross-AZ migration)
+   ========================================================= */
+.sc-wrap{position:absolute;inset:14px 18px;display:grid;grid-template-rows:1fr 175px;gap:10px}
+.sc-az-row{display:grid;grid-template-columns:1fr 90px 1fr;gap:12px;min-height:0;position:relative}
+.sc-az{
+  border:1.5px dashed var(--line2);border-radius:12px;background:rgba(11,18,35,.55);
+  padding:11px;display:flex;flex-direction:column;overflow:hidden;min-height:0;
+}
+.sc-az h5{
+  margin:0 0 8px;font-family:var(--mono);font-size:12px;color:#cfe0ff;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.sc-az h5 .tag{
+  font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(79,140,255,.18);
+  border:1px solid #2b497c;color:#bdd0ff;font-family:var(--sans);
+}
+.sc-az.src{border-color:#7c2a3c}
+.sc-az.tgt{border-color:#2a7c4a}
+.sc-az.src h5{color:#ffb6c1}
+.sc-az.tgt h5{color:#a8f3cb}
+
+.sc-hosts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;flex:1;min-height:0}
+.sc-host{
+  border:1.5px solid var(--line);border-radius:10px;background:#10172d;padding:8px;
+  display:flex;flex-direction:column;gap:5px;min-height:0;position:relative;transition:all .8s;
+}
+.sc-host h6{margin:0;font-size:11px;font-weight:800;color:#fff;font-family:var(--mono)}
+.sc-host.hot{border-color:var(--red);box-shadow:0 0 16px rgba(255,86,112,.3)}
+.sc-host.target{border-color:var(--green);box-shadow:0 0 16px rgba(40,209,124,.25)}
+.sc-host.cooled{border-color:var(--green);box-shadow:0 0 13px rgba(40,209,124,.2)}
+.sc-mt{
+  display:grid;grid-template-columns:34px 1fr 30px;gap:5px;align-items:center;font-size:10px;
+}
+.sc-mt .lbl{color:var(--muted);font-weight:700}
+.sc-mt .tk{height:5px;background:#1c294b;border-radius:999px;overflow:hidden}
+.sc-mt .fl{
+  height:100%;background:linear-gradient(90deg,var(--blue),var(--green));
+  border-radius:999px;transition:width 1.2s;
+}
+.sc-host.hot .fl{background:linear-gradient(90deg,var(--orange),var(--red))}
+.sc-mt .vv{font-family:var(--mono);font-size:10px;font-weight:800;color:#cfe0ff;text-align:right}
+.sc-vmlist{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto}
+.sc-vm{
+  font-family:var(--mono);font-size:10px;font-weight:800;padding:3px 6px;border-radius:5px;
+  background:#172642;border:1px solid #375998;color:#cfe0ff;transition:all .4s;
+}
+.sc-vm.pick{border-color:var(--orange);background:rgba(255,184,77,.13);color:#ffd9a3}
+.sc-vm.migrated{border-color:var(--green);background:rgba(40,209,124,.13);color:#a8f3cb}
+
+.sc-bridge{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px}
+.sc-arrow{
+  font-size:36px;color:var(--purple);font-weight:900;animation:arrPulse 1.6s infinite ease-in-out;
+}
+.sc-bridge .lb{
+  font-family:var(--mono);font-size:10px;color:#bdd0ff;text-align:center;
+  background:#101c36;border:1px solid #2b497c;border-radius:7px;padding:6px 7px;line-height:1.4;
+}
+.sc-bridge .lb.algo{border-color:#5b3d99;color:#cbb6ff;background:rgba(139,108,255,.08)}
+
+.sc-flying{
+  position:absolute;font-family:var(--mono);font-size:11px;font-weight:800;
+  padding:5px 9px;border-radius:6px;background:rgba(255,184,77,.28);
+  border:1.5px solid var(--orange);color:#fff;
+  box-shadow:0 0 22px rgba(255,184,77,.75),0 4px 12px rgba(0,0,0,.4);
+  z-index:60;pointer-events:none;
+  transition:left 1.4s cubic-bezier(.45,.05,.55,.95), top 1.4s cubic-bezier(.45,.05,.55,.95), transform .6s ease;
+  will-change:left,top;
+}
+.sc-flying::before{content:"📦 ";font-size:11px}
+.sc-flying.depart{transform:scale(1.12)}
+.sc-flying.arrive{
+  transform:scale(0.92);background:rgba(40,209,124,.3);
+  border-color:var(--green);box-shadow:0 0 22px rgba(40,209,124,.7);
+}
+
+.sc-bottom{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;min-height:0}
+.sc-compare,.sc-pareto{
+  border:1.5px solid var(--line);border-radius:11px;background:rgba(13,22,43,.7);
+  padding:9px 12px;display:grid;grid-template-rows:auto 1fr;gap:7px;min-height:0;
+}
+.sc-compare h5,.sc-pareto h5{margin:0;font-size:11.5px;color:#8fb3ff;letter-spacing:1px}
+.sc-compare-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.sc-cmp{
+  border:1px solid #2b497c;border-radius:8px;background:#101c36;
+  padding:6px 9px;display:flex;flex-direction:column;gap:2px;
+}
+.sc-cmp .nm{font-size:10px;color:var(--muted);font-weight:700}
+.sc-cmp .row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-family:var(--mono);font-size:12px;font-weight:800;
+}
+.sc-cmp .before{color:#ffb6c1}.sc-cmp .after{color:#a8f3cb}.sc-cmp .arrow{color:var(--blue)}
+.sc-pareto svg{width:100%;height:100%}
+
+/* =========================================================
+   STAGE 4 — CAUSAL (DAG + Monte Carlo + plans)
+   ========================================================= */
+.cs-wrap{position:absolute;inset:14px 18px;display:grid;grid-template-rows:auto 1fr;gap:10px}
+.cs-pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:9px}
+.cs-pipe .step{
+  border:1.5px solid var(--line2);border-radius:11px;background:rgba(15,25,47,.85);
+  padding:8px 11px;position:relative;font-weight:800;transition:all .5s;
+}
+.cs-pipe .step .n{font-family:var(--mono);font-size:10px;color:#8fb3ff;letter-spacing:1px}
+.cs-pipe .step .t{font-size:12.5px;margin-top:2px}
+.cs-pipe .step .d{font-size:10px;color:var(--muted);margin-top:2px;font-weight:500;line-height:1.4}
+.cs-pipe .step::after{
+  content:"→";position:absolute;right:-9px;top:50%;transform:translateY(-50%);
+  color:var(--blue);font-size:16px;font-weight:900;z-index:2;
+}
+.cs-pipe .step:last-child::after{display:none}
+.cs-pipe .step.s1{border-color:#5b3d99}
+.cs-pipe .step.s2{border-color:#7c5a2a}
+.cs-pipe .step.s3{border-color:var(--purple)}
+.cs-pipe .step.s4{border-color:var(--green)}
+.cs-pipe .step.s5{border-color:var(--cyan)}
+.cs-pipe .step.lit{transform:translateY(-3px);box-shadow:0 8px 22px rgba(79,140,255,.35)}
+
+.cs-main{display:grid;grid-template-columns:1.05fr 1.5fr 1.05fr;gap:10px;min-height:0}
+.cs-card{
+  border:1.5px solid var(--line);border-radius:12px;background:rgba(13,22,43,.7);
+  padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden;
+}
+.cs-card h5{margin:0;font-size:11.5px;color:#8fb3ff;letter-spacing:1px}
+.cs-card .dim{font-size:10.5px;color:var(--muted);line-height:1.4;margin:0}
+
+.cs-anom{display:flex;flex-direction:column;gap:6px}
+.cs-anom-block{
+  border:1px solid #5b3d99;border-radius:9px;background:#161028;padding:7px 9px;
+}
+.cs-anom-block .lbl{font-size:10px;color:#cbb6ff;font-weight:800;letter-spacing:.6px;margin-bottom:3px}
+.cs-anom-block .ch{
+  height:48px;background:#071022;border:1px solid #27406e;border-radius:6px;position:relative;overflow:hidden;
+}
+.cs-anom-block .ch svg{width:100%;height:100%}
+
+.cs-dag{
+  flex:1;border:1px solid var(--line);border-radius:11px;background:#071022;
+  position:relative;overflow:hidden;min-height:300px;
+}
+.cs-dag svg{position:absolute;inset:0;width:100%;height:100%}
+.cs-dnode{
+  position:absolute;border:2px solid #4975c3;border-radius:9px;background:#111b33;
+  padding:5px 8px;text-align:center;font-weight:800;font-size:10.5px;min-width:70px;
+  transition:all .6s;z-index:5;
+}
+.cs-dnode .sub{font-size:9px;color:var(--muted);font-weight:600;margin-top:1px}
+.cs-dnode.vol{border-color:var(--purple);min-width:50px;font-size:10px;padding:4px 6px}
+.cs-dnode.vol.hot{border-color:var(--red);box-shadow:0 0 11px rgba(255,86,112,.5)}
+.cs-dnode.node{border-color:var(--orange);font-size:10px;min-width:60px;padding:5px 7px}
+.cs-dnode.node.hot{border-color:var(--red);box-shadow:0 0 13px rgba(255,86,112,.5)}
+.cs-dnode.sys{border-color:var(--cyan);min-width:90px}
+.cs-dnode.sys.hot{border-color:var(--red);box-shadow:0 0 16px rgba(255,86,112,.55);color:#ffb6c1}
+.cs-dnode.sys.green{border-color:var(--green);box-shadow:0 0 16px rgba(40,209,124,.5);color:#a8f3cb}
+.cs-dlbl{
+  position:absolute;font-size:9.5px;color:#8fb3ff;font-weight:800;letter-spacing:.6px;
+  background:#0b1328;padding:2px 7px;border:1px solid #2b497c;border-radius:5px;z-index:4;
+}
+
+.cs-mc{display:flex;flex-direction:column;gap:7px;min-height:0}
+.cs-mc h6{margin:0;font-size:11px;color:#cfe0ff;font-weight:800}
+.cs-hist{
+  height:120px;border:1px solid var(--line);border-radius:9px;background:#071022;
+  padding:6px;position:relative;
+}
+.cs-hist svg{width:100%;height:100%}
+.cs-plans{
+  display:flex;flex-direction:column;gap:5px;flex:1;min-height:0;
+  overflow-y:auto;padding-right:2px;
+}
+.cs-plan{display:grid;grid-template-columns:34px 1fr 56px;gap:6px;align-items:center;font-size:10.5px}
+.cs-plan .nm{font-family:var(--mono);font-weight:800;color:#cfe0ff}
+.cs-plan .bar{
+  height:9px;background:#1c294b;border-radius:999px;overflow:hidden;position:relative;
+}
+.cs-plan .bar .fl{
+  height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));
+  border-radius:999px;width:0%;transition:width 1.5s ease-out;
+}
+.cs-plan.recommended .bar .fl{background:linear-gradient(90deg,#ffb84d,var(--green))}
+.cs-plan.worst .bar .fl{background:linear-gradient(90deg,var(--orange),var(--red))}
+.cs-plan .pct{font-family:var(--mono);font-size:10px;font-weight:800;text-align:right;color:#cfe0ff}
+.cs-plan.recommended .pct{color:#ffd9a3}
+.cs-plan.worst .pct{color:#ffb6c1}
+
+.cs-decision{
+  margin-top:auto;padding:9px 10px;border:1.5px solid var(--green);border-radius:9px;
+  background:rgba(40,209,124,.1);text-align:center;font-weight:900;color:#a8f3cb;font-size:12px;
+  opacity:.35;transition:opacity .5s;
+}
+.cs-decision.ready{opacity:1}
+
+/* =========================================================
+   STAGE 5 — LOGIC (clean architecture summary)
+   ========================================================= */
+.lg-wrap{position:absolute;inset:14px 18px;display:grid;grid-template-rows:auto 1fr auto;gap:10px}
+.lg-title{text-align:center;font-size:13px;color:#cfe0ff;font-weight:800;letter-spacing:1px}
+.lg-grid{
+  position:relative;display:grid;grid-template-columns:repeat(5,1fr);gap:18px;min-height:0;
+}
+.lg-card{
+  border:2px dashed var(--line2);border-radius:12px;background:rgba(15,25,47,.85);
+  padding:11px 12px;display:flex;flex-direction:column;gap:6px;min-height:0;position:relative;z-index:5;
+}
+.lg-card.c0{border-color:var(--blue)}
+.lg-card.c1{border-color:var(--red)}
+.lg-card.c2{border-color:var(--yellow)}
+.lg-card.c3{border-color:var(--purple)}
+.lg-card.c4{border-color:var(--green)}
+.lg-card .head{display:flex;justify-content:space-between;align-items:center}
+.lg-card .head h4{margin:0;font-size:13px;font-weight:900}
+.lg-card .head .num{
+  font-family:var(--mono);font-size:10px;font-weight:800;padding:2px 6px;
+  border-radius:5px;background:#0b1328;border:1px solid var(--line2);color:#8fb3ff;
+}
+.lg-card .role{font-size:10px;color:var(--muted);font-weight:600;margin-top:-2px}
+.lg-block{
+  border:1px solid #36598f;border-radius:9px;padding:6px 8px;background:#0d1730;
+  flex:1;min-height:42px;display:flex;flex-direction:column;
+}
+.lg-block .lbl{
+  font-size:9px;color:#8fb3ff;font-weight:900;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px;
+}
+.lg-block p{margin:0;color:#d8e4ff;font-size:10px;line-height:1.4}
+.lg-block.in{border-color:#3d5b99}
+.lg-block.method{border-color:#5b3d99}
+.lg-block.out{border-color:#996b3d;background:#1c1305}
+.lg-block.next{border-color:#3d9963;background:#0a1d12}
+.lg-block.in .lbl{color:#9ab0e6}
+.lg-block.method .lbl{color:#cbb6ff}
+.lg-block.out .lbl{color:#ffd9a3}
+.lg-block.next .lbl{color:#a8f3cb}
+
+.lg-conn{position:absolute;inset:0;pointer-events:none;z-index:1}
+.lg-conn svg{width:100%;height:100%;overflow:visible}
+.lg-conn .flow{stroke-dasharray:5 5;stroke-width:1.6;fill:none;opacity:.85;animation:flowDash 1.4s linear infinite}
+.lg-conn .lab{font-family:var(--mono);font-size:10px;font-weight:800;fill:#cfe0ff}
+.lg-conn .labbg{fill:#0b1328;stroke:#2b497c;stroke-width:1}
+
+.lg-legend{
+  display:flex;justify-content:center;gap:14px;padding:7px 12px;
+  background:rgba(8,13,26,.7);border:1px solid var(--line);border-radius:9px;
+  font-size:11px;color:var(--muted);flex-wrap:wrap;
+}
+.lg-legend span{display:flex;gap:5px;align-items:center;font-weight:700}
+.lg-legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+
+/* =========================================================
+   MODAL (spec)
+   ========================================================= */
+.modal-mask{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:1000;
+}
+.modal-mask.show{display:flex}
+.modal{
+  width:min(900px,92vw);max-height:84vh;background:#0a1226;border:1px solid var(--line2);
+  border-radius:14px;display:flex;flex-direction:column;overflow:hidden;
+}
+.modal-head{padding:13px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.modal-head h3{margin:0;font-size:15px}
+.modal-body{flex:1;overflow:auto;padding:14px 18px;font-family:var(--mono);font-size:12px;line-height:1.65;color:#cfe0ff;white-space:pre-wrap}
+.modal-foot{padding:9px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media(max-width:1500px){
+  .visual{height:600px}
+  .det-main{grid-template-columns:260px 1fr 280px}
+  .fc-wrap{grid-template-columns:200px 1fr 280px}
+  .cs-main{grid-template-columns:1fr 1.4fr 1fr}
+}
+@media(max-width:1200px){
+  .tabs{grid-template-columns:repeat(4,1fr)}
+  .visual{height:auto;min-height:1100px}
+  .det-wrap,.fc-wrap,.cs-wrap,.sc-wrap,.lg-wrap,.ov-wrap{grid-template-columns:1fr;position:relative;inset:auto}
+  .det-main,.cs-main{grid-template-columns:1fr}
+  .lg-grid{grid-template-columns:1fr}
+  .lg-card::after{display:none}
+  .iomn{grid-template-columns:1fr 1fr}
+  .ov-flow{grid-template-columns:1fr}.ov-step::after{display:none}
+  .ov-arch{grid-template-columns:1fr}.sc-az-row{grid-template-columns:1fr}.sc-bridge{display:none}
+  .ctrl{grid-template-columns:1fr}
+}
+
+/* =========================================================
+   SCREENSHOT MODE  (freeze + hide chrome, optimize for capture)
+   ========================================================= */
+body.shot .tabs{display:none}
+body.shot .ctrl{display:none}
+body.shot .iomn{display:none}
+body.shot .iobar-head{display:none}
+body.shot .header .actions .btn:not(#shotBtn){display:none}
+body.shot .visual{height:760px}
+body.shot #shotBtn{background:linear-gradient(135deg,var(--green),var(--cyan));color:#04221a}
+/* freeze all CSS animations during capture */
+body.shot *{animation-play-state:paused !important}
+
+/* =========================================================
+   STAGE 1 — spike filter comparison (short spike vs persistent)
+   ========================================================= */
+.det-spc{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  border:1px solid var(--line);border-radius:10px;background:rgba(13,22,43,.55);
+  padding:8px 10px;margin-top:2px;
+}
+.det-spc .case{
+  border:1px solid #2b497c;border-radius:9px;background:#0b1328;padding:7px 9px;position:relative;
+}
+.det-spc .case h6{margin:0 0 4px;font-size:11px;font-weight:800;display:flex;align-items:center;gap:6px}
+.det-spc .case .badge{
+  font-family:var(--mono);font-size:9px;font-weight:800;padding:2px 6px;border-radius:5px;margin-left:auto;
+}
+.det-spc .case.filtered h6{color:#9aa8c7}
+.det-spc .case.filtered .badge{background:rgba(154,168,199,.18);border:1px solid #44506e;color:#c2cbe0}
+.det-spc .case.retained h6{color:#ffb6c1}
+.det-spc .case.retained .badge{background:rgba(255,86,112,.18);border:1px solid #7c2a3c;color:#ffb6c1}
+.det-spc .case svg{width:100%;height:64px;display:block}
+.det-spc .case .note{font-size:9.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+.det-spc .case.retained .note{color:#ffd9a3}
+
+/* =========================================================
+   STAGE 6 — 3D SYSTEM DEMO  (rebuilt for exhibition)
+   ========================================================= */
+.td-wrap{position:absolute;inset:12px 16px;display:grid;grid-template-columns:170px 1fr 300px;gap:10px;min-height:0}
+
+/* LEFT: person client + load balancer + ingress flow */
+.td-left{
+  border:1.5px solid var(--line);border-radius:12px;background:rgba(13,22,43,.7);
+  padding:12px 10px;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;
+}
+.td-person{position:relative;width:90px;height:88px;display:flex;flex-direction:column;align-items:center}
+.td-person .p-head{
+  width:30px;height:30px;border-radius:50%;
+  background:linear-gradient(180deg,#5fc8ff,#2f9fe0);box-shadow:0 0 14px rgba(47,159,224,.5);
+}
+.td-person .p-body{
+  width:54px;height:46px;margin-top:-3px;
+  background:linear-gradient(180deg,#3a9fe0,#2076b8);
+  border-radius:26px 26px 12px 12px;box-shadow:0 8px 16px rgba(32,118,184,.35);
+}
+.td-person .p-bubble{
+  position:absolute;right:-6px;top:-6px;font-size:8.5px;font-weight:800;color:#06203a;
+  background:#9fe3ff;border-radius:8px 8px 8px 2px;padding:3px 6px;line-height:1.15;text-align:center;
+  box-shadow:0 4px 10px rgba(0,0,0,.3);animation:bubblePop 1.8s ease-in-out infinite;
+}
+@keyframes bubblePop{0%,100%{transform:translateY(0);opacity:.85}50%{transform:translateY(-4px);opacity:1}}
+.td-person-lbl{font-size:10px;font-weight:800;color:#9fe3ff}
+.td-arrowd{font-size:18px;color:var(--blue);font-weight:900;animation:arrPulse 1.6s infinite}
+.td-lb{
+  width:120px;height:48px;border:2.5px solid #6694ff;border-radius:11px;background:rgba(79,140,255,.14);
+  display:grid;place-items:center;text-align:center;font-weight:900;color:#cfe0ff;font-size:11px;
+}
+.td-left .reqflow{
+  width:100%;height:54px;position:relative;border:1px dashed rgba(143,179,255,.3);border-radius:9px;overflow:hidden;
+}
+.td-left .reqflow .lp{
+  position:absolute;width:7px;height:7px;border-radius:50%;background:#4f8cff;box-shadow:0 0 9px #4f8cff;
+  left:10%;top:50%;opacity:0;
+}
+.td-left .reqflow.run .lp{animation:lpMove 1.6s linear infinite}
+@keyframes lpMove{0%{left:-6%;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:106%;opacity:0}}
+.td-ingress-note{font-size:9.5px;color:var(--muted);text-align:center;line-height:1.5}
+
+/* CENTER: 3D scene (draggable) */
+.td-scene-wrap{
+  border:1.5px solid #4770c7;border-radius:12px;
+  background:radial-gradient(circle at 50% 18%,rgba(79,140,255,.10),transparent 62%),rgba(6,10,22,.7);
+  position:relative;overflow:hidden;min-height:0;display:flex;align-items:center;justify-content:center;
+  perspective:1500px;cursor:grab;
+}
+.td-scene-wrap.grabbing{cursor:grabbing}
+.td-stagebadge{
+  position:absolute;left:12px;top:10px;font-size:11.5px;font-weight:800;color:#8fb3ff;z-index:20;
+  font-family:var(--mono);background:rgba(8,13,26,.7);border:1px solid var(--line);border-radius:7px;padding:4px 9px;
+  max-width:60%;
+}
+.td-draghint{
+  position:absolute;right:12px;bottom:10px;font-size:9.5px;color:var(--muted);z-index:20;
+  background:rgba(8,13,26,.6);border:1px solid var(--line);border-radius:6px;padding:3px 8px;pointer-events:none;
+}
+/* flow overlay (SVG paths + particles) sits above the scene plane but below popover */
+.td-flow-svg{position:absolute;inset:0;width:100%;height:100%;z-index:18;pointer-events:none}
+
+.td-scene{
+  transform-style:preserve-3d;
+  transform:rotateX(-16deg) rotateY(-26deg) scale(1);
+  transition:transform .6s ease;
+  width:380px;height:360px;position:relative;
+}
+.td-scene.dragging{transition:none}
+
+/* floating dashboard (screen-space overlay, always readable) */
+.td-dashboard{
+  position:absolute;left:12px;top:42px;z-index:22;
+  border:1.5px solid #2f6c80;border-radius:10px;background:rgba(8,18,28,.82);
+  padding:9px 11px;display:flex;flex-direction:column;gap:6px;min-width:150px;transition:all .4s;
+}
+.td-dashboard.warn{border-color:var(--yellow);box-shadow:0 0 18px rgba(255,224,102,.25)}
+.td-dashboard.hot{border-color:var(--red);box-shadow:0 0 22px rgba(255,86,112,.35)}
+.td-dashboard.green{border-color:var(--green);box-shadow:0 0 22px rgba(40,209,124,.35)}
+.td-dashboard .dh{font-size:10px;font-weight:800;color:#8fb3ff;letter-spacing:.5px}
+.td-sys-grid{display:flex;flex-direction:column;gap:4px}
+.td-sys-grid .k{
+  font-family:var(--mono);font-size:11px;font-weight:800;padding:4px 8px;border-radius:6px;
+  background:#0b1f2e;border:1px solid #2f6c80;color:#cdf7ff;transition:all .4s;display:flex;justify-content:space-between;
+}
+.td-sys-grid .k.alert{background:rgba(255,86,112,.2);border-color:#7c2a3c;color:#ffb6c1}
+.td-sys-status{
+  font-weight:900;font-size:13px;padding:5px 10px;border-radius:7px;border:1.5px solid;text-align:center;cursor:pointer;
+}
+.td-sys-status[data-s="Normal"]{color:#23c7df;border-color:#2f6c80;background:rgba(35,199,223,.12)}
+.td-sys-status[data-s="Warning"]{color:#ffe066;border-color:#7c6a2a;background:rgba(255,224,102,.14)}
+.td-sys-status[data-s="Hotspot"]{color:#ff5670;border-color:#7c2a3c;background:rgba(255,86,112,.16)}
+.td-sys-status[data-s="Verified"]{color:#28d17c;border-color:#2a7c4a;background:rgba(40,209,124,.16)}
+
+/* ===== generic CSS 3D cuboid (6 faces, centered origin) ===== */
+.cube{position:absolute;transform-style:preserve-3d}
+.cube>.f{position:absolute;left:50%;top:50%;display:grid;place-items:center;
+  font-family:var(--mono);font-weight:800;backface-visibility:hidden;box-sizing:border-box}
+.cube>.fr{width:var(--w);height:var(--h);margin-left:calc(var(--w)/-2);margin-top:calc(var(--h)/-2);transform:translateZ(calc(var(--d)/2))}
+.cube>.bk{width:var(--w);height:var(--h);margin-left:calc(var(--w)/-2);margin-top:calc(var(--h)/-2);transform:translateZ(calc(var(--d)/-2)) rotateY(180deg)}
+.cube>.lf{width:var(--d);height:var(--h);margin-left:calc(var(--d)/-2);margin-top:calc(var(--h)/-2);transform:rotateY(-90deg) translateZ(calc(var(--w)/2))}
+.cube>.rt{width:var(--d);height:var(--h);margin-left:calc(var(--d)/-2);margin-top:calc(var(--h)/-2);transform:rotateY(90deg) translateZ(calc(var(--w)/2))}
+.cube>.tp{width:var(--w);height:var(--d);margin-left:calc(var(--w)/-2);margin-top:calc(var(--d)/-2);transform:rotateX(90deg) translateZ(calc(var(--h)/2))}
+.cube>.bt{width:var(--w);height:var(--d);margin-left:calc(var(--w)/-2);margin-top:calc(var(--d)/-2);transform:rotateX(-90deg) translateZ(calc(var(--h)/2))}
+
+/* transparent storage pool container (wireframe cube) */
+.td-pool{
+  left:50%;top:50%;--w:340px;--h:250px;--d:190px;z-index:1;pointer-events:none;transition:all .5s;
+}
+.td-pool>.f{background:rgba(79,140,255,.04);border:1px solid rgba(79,140,255,.35)}
+.td-pool>.tp{background:rgba(79,140,255,.07)}
+.td-pool .pool-tag{
+  position:absolute;left:8px;top:6px;font-size:10px;color:#8fb3ff;font-weight:800;letter-spacing:.5px;
+}
+.td-pool.hot>.f{border-color:rgba(255,86,112,.5);background:rgba(255,86,112,.05)}
+.td-pool.green>.f{border-color:rgba(40,209,124,.5);background:rgba(40,209,124,.06)}
+@keyframes poolPulse{0%,100%{box-shadow:0 0 0 rgba(40,209,124,0)}50%{box-shadow:0 0 60px rgba(40,209,124,.5)}}
+.td-scene.balanced .td-pool{animation:poolPulse 1.8s infinite}
+
+/* Load Balancer cuboid */
+.td-lb3{left:11%;top:50%;--w:46px;--h:50px;--d:46px;z-index:4}
+.td-lb3>.f{background:linear-gradient(160deg,rgba(79,140,255,.5),rgba(79,140,255,.2));border:1px solid #6694ff;color:#dce9ff;font-size:8px;text-align:center;line-height:1.15}
+.td-lb3>.tp{background:rgba(79,140,255,.55)}
+.td-lb3>.rt{background:rgba(79,140,255,.3)}
+
+/* node server cuboids row */
+.td-nodes{position:absolute;left:50%;top:33%;transform:translate(-50%,-50%);transform-style:preserve-3d;
+  display:flex;gap:42px;z-index:5}
+.td-node{position:relative;width:74px;height:90px;--w:74px;--h:90px;--d:56px;cursor:pointer;transition:filter .4s;transform-style:preserve-3d}
+.td-node>.f{border:1px solid #2f7c52;background:linear-gradient(160deg,rgba(40,209,124,.22),rgba(14,26,22,.9));color:#cfe0ff}
+.td-node>.tp{background:linear-gradient(160deg,rgba(40,209,124,.4),rgba(40,209,124,.15))}
+.td-node>.lf{background:rgba(14,26,22,.95)}
+.td-node>.rt{background:rgba(40,209,124,.12)}
+.td-node .nhead{position:absolute;top:5px;left:0;right:0;text-align:center;font-size:11px;font-weight:800;color:#fff;font-family:var(--mono)}
+.td-node .npct{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:12px;font-weight:900;color:#a8f3cb}
+/* front-face port slots */
+.td-node .pslots{position:absolute;left:8px;right:8px;top:26px;display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
+.td-port{
+  height:15px;border:1px solid #2f7c8c;border-radius:3px;background:#0a2533;
+  display:grid;place-items:center;color:#cdf7ff;font-weight:800;font-size:7.5px;cursor:pointer;transition:all .4s;
+}
+.td-port[data-state="warm"]{border-color:var(--orange);background:rgba(255,184,77,.18)}
+.td-port[data-state="hot"]{border-color:var(--red);background:rgba(255,86,112,.3);box-shadow:0 0 10px rgba(255,86,112,.8);animation:pulseRed 1.1s infinite}
+/* node thermal states (filter glow on whole cuboid) */
+@keyframes heatWave{0%,100%{filter:none}50%{filter:brightness(1.25) saturate(1.4)}}
+.td-node[data-state="warm"]>.f{border-color:var(--orange);background:linear-gradient(160deg,rgba(255,184,77,.28),rgba(26,20,10,.9))}
+.td-node[data-state="warm"]>.tp{background:linear-gradient(160deg,rgba(255,184,77,.45),rgba(255,184,77,.18))}
+.td-node[data-state="warm"] .npct{color:#ffd9a3}
+.td-node[data-state="hot"]>.f{border-color:var(--red);background:linear-gradient(160deg,rgba(255,86,112,.4),rgba(40,8,16,.92))}
+.td-node[data-state="hot"]>.tp{background:linear-gradient(160deg,rgba(255,86,112,.6),rgba(255,86,112,.25))}
+.td-node[data-state="hot"]>.lf{background:rgba(60,10,18,.95)}
+.td-node[data-state="hot"]>.f{box-shadow:0 0 26px rgba(255,86,112,.6)}
+.td-node[data-state="hot"] .npct{color:#ffb6c1}
+.td-node[data-state="hot"]{animation:heatWave 1.3s infinite}
+.td-node[data-state="hot"] .nhead::after{content:" 🔥"}
+.td-node[data-state="cooled"]>.f{border-color:var(--green);background:linear-gradient(160deg,rgba(40,209,124,.3),rgba(14,26,22,.9))}
+
+/* volume shelf + small storage cubes */
+.td-shelf{position:absolute;left:50%;top:74%;transform:translate(-50%,-50%);transform-style:preserve-3d;z-index:4}
+.td-shelf-base{position:absolute;left:50%;top:50%;--w:320px;--h:8px;--d:70px;margin:0;}
+.td-shelf-base>.f{background:rgba(139,108,255,.12);border:1px solid rgba(139,108,255,.4)}
+.td-shelf-base>.tp{background:rgba(139,108,255,.2)}
+.td-vols{position:absolute;left:50%;top:50%;transform:translate(-50%,-60%);transform-style:preserve-3d;
+  display:grid;grid-template-columns:repeat(10,1fr);gap:8px 6px;width:316px}
+.td-vol{position:relative;--w:18px;--h:18px;--d:18px;width:18px;height:18px;cursor:pointer;transform-style:preserve-3d;transition:transform .5s}
+.td-vol>.f{font-size:7px;color:#cbb6ff}
+.td-vol>.fr{background:linear-gradient(150deg,#3a2d72,#2b2257);border:1px solid #5a47a8}
+.td-vol>.tp{background:#4a3a8c;border:1px solid #5a47a8}
+.td-vol>.rt{background:#241d4d;border:1px solid #5a47a8}
+.td-vol.cand>.fr{background:linear-gradient(150deg,#7c5a2a,#5a3f12);border-color:var(--orange);color:#ffe9c4;box-shadow:0 0 12px rgba(255,184,77,.6)}
+.td-vol.cand>.tp{background:#a87a30}
+.td-vol.cand{transform:translateZ(10px)}
+.td-vol.fly>.fr{background:linear-gradient(150deg,#1e6b46,#0f3d28);border-color:var(--green);color:#a8f3cb}
+.td-vol.fly>.tp{background:#2a8c5c}
+
+/* mini future-curve bubble above lifted volumes (forecast) */
+.td-volchart{
+  position:absolute;left:50%;bottom:100%;transform:translateX(-50%);width:46px;height:24px;
+  background:rgba(8,13,26,.9);border:1px solid #7c6a2a;border-radius:5px;display:none;z-index:30;
+}
+.td-vol.show-chart .td-volchart{display:block}
+.td-volchart svg{width:100%;height:100%}
+
+/* flying volume in 3D scene (2D screen-space, above flow) */
+.td-flying{
+  position:absolute;font-family:var(--mono);font-size:11px;font-weight:800;padding:4px 8px;border-radius:6px;
+  background:rgba(139,108,255,.4);border:1.5px solid var(--purple);color:#fff;z-index:40;pointer-events:none;
+  box-shadow:0 0 22px rgba(139,108,255,.8);
+  transition:left 1.3s cubic-bezier(.45,.05,.55,.95),top 1.3s cubic-bezier(.45,.05,.55,.95),transform .5s;
+}
+.td-flying::before{content:"📦 "}
+.td-flying.arrive{background:rgba(40,209,124,.35);border-color:var(--green);box-shadow:0 0 22px rgba(40,209,124,.8)}
+
+/* causal overlay in 3D */
+.td-causal{
+  position:absolute;left:50%;top:42px;transform:translateX(-50%);z-index:25;
+  display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:11.5px;font-weight:800;
+  background:rgba(8,13,26,.85);border:1px solid var(--purple);border-radius:9px;padding:7px 13px;
+  opacity:0;transition:opacity .5s;
+}
+.td-causal.show{opacity:1}
+.td-causal .seg{color:#cbb6ff}
+.td-causal .ar{color:#ff5670}
+.td-causal.pass .seg{color:#a8f3cb}
+.td-causal.pass .ar{color:#28d17c}
+.td-causal .mc{margin-left:6px;padding-left:8px;border-left:1px solid #3a3060;color:#ffd9a3;font-size:10.5px}
+.td-causal .mc.running::after{content:"";display:inline-block;width:5px;height:5px;margin-left:5px;border-radius:50%;background:#ffd9a3;animation:mcBlink .8s infinite}
+@keyframes mcBlink{0%,100%{opacity:.25}50%{opacity:1}}
+
+/* ===== architecture clearer separation: explicit borders on model parts ===== */
+.td-nodes{padding:0}
+.td-node>.fr{box-shadow:inset 0 0 0 1px rgba(143,179,255,.25)}
+.td-node .pslots{border:1px dashed rgba(143,179,255,.35);border-radius:5px;padding:3px;background:rgba(8,18,28,.4)}
+.td-node .nhead{border-bottom:1px solid rgba(143,179,255,.25);padding-bottom:3px}
+.td-lb3>.fr{box-shadow:inset 0 0 0 1px rgba(102,148,255,.6)}
+
+/* ===== 4 separate part-cubes (right side of scene) ===== */
+.td-parts{
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:24;
+  display:flex;flex-direction:column;gap:10px;align-items:center;
+  background:rgba(8,13,26,.7);border:1px solid var(--line);border-radius:10px;padding:10px 8px;
+}
+.td-parts-title{font-size:9.5px;font-weight:800;color:#8fb3ff;letter-spacing:.4px;writing-mode:initial;text-align:center}
+.td-parts-hint{font-size:8.5px;color:var(--muted);text-align:center;line-height:1.4}
+.part-cube{position:relative;width:50px;height:58px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.part-cube .pc{
+  position:relative;width:34px;height:34px;transform-style:preserve-3d;
+  transform:rotateX(-20deg) rotateY(-28deg);transition:transform .15s;
+  --w:34px;--h:34px;--d:34px;
+}
+.part-cube .pc .f{
+  position:absolute;left:50%;top:50%;width:34px;height:34px;margin-left:-17px;margin-top:-17px;
+  border:1px solid;backface-visibility:hidden;
+}
+.part-cube .pc .fr{transform:translateZ(17px)}
+.part-cube .pc .bk{transform:translateZ(-17px) rotateY(180deg)}
+.part-cube .pc .lf{transform:rotateY(-90deg) translateZ(17px)}
+.part-cube .pc .rt{transform:rotateY(90deg) translateZ(17px)}
+.part-cube .pc .tp{transform:rotateX(90deg) translateZ(17px)}
+.part-cube .pc .bt{transform:rotateX(-90deg) translateZ(17px)}
+.part-cube .part-lbl{font-size:9px;font-weight:800;color:#cfe0ff;text-align:center;line-height:1.1}
+.part-cube .part-lbl small{display:block;font-size:7.5px;color:var(--muted);font-weight:600}
+/* color per part */
+.part-cube.sys .f{border-color:#2f6c80;background:rgba(35,199,223,.18)}
+.part-cube.node .f{border-color:#2f7c52;background:rgba(40,209,124,.18)}
+.part-cube.port .f{border-color:#2f7c8c;background:rgba(39,184,214,.2)}
+.part-cube.vol .f{border-color:#5a47a8;background:rgba(139,108,255,.2)}
+.part-cube:hover .pc{transform:rotateX(-20deg) rotateY(-28deg) scale(1.12)}
+/* active (hovered) → its own cube turns red */
+.part-cube.lit .f{border-color:var(--red)!important;background:rgba(255,86,112,.28)!important;box-shadow:0 0 10px rgba(255,86,112,.5)}
+.part-cube.lit .part-lbl{color:#ffb6c1}
+/* spin animation on click */
+@keyframes partSpin{from{transform:rotateX(-20deg) rotateY(-28deg)}to{transform:rotateX(-20deg) rotateY(332deg)}}
+.part-cube.spin .pc{animation:partSpin 1.2s ease-in-out}
+
+/* ===== main-model red highlight when a part is hovered ===== */
+.td-dashboard.parthi{border-color:var(--red)!important;box-shadow:0 0 22px rgba(255,86,112,.45)!important}
+.td-pool.parthi>.f{border-color:rgba(255,86,112,.7)!important;background:rgba(255,86,112,.08)!important}
+.td-node.parthi>.fr{box-shadow:inset 0 0 0 2px var(--red),0 0 20px rgba(255,86,112,.5)!important;border-color:var(--red)!important}
+.td-port.parthi{border-color:var(--red)!important;background:rgba(255,86,112,.35)!important;box-shadow:0 0 10px rgba(255,86,112,.7)!important}
+.td-vol.parthi>.fr{border-color:var(--red)!important;background:rgba(255,86,112,.3)!important;box-shadow:0 0 10px rgba(255,86,112,.6)!important}
+
+
+/* RIGHT: phase badge + IPO explain + 2D mini panel */
+.td-right{
+  border:1.5px solid var(--line);border-radius:12px;background:rgba(13,22,43,.7);
+  padding:11px;display:flex;flex-direction:column;gap:9px;min-height:0;overflow:hidden;
+}
+/* BIG current-phase badge */
+.td-phasebadge{
+  border-radius:11px;padding:9px 12px;border:2px solid var(--line2);background:#0b1328;
+  display:flex;align-items:center;gap:10px;transition:all .5s;
+}
+.td-phasebadge .ico{font-size:22px;transition:transform .4s}
+.td-phasebadge .tx{display:flex;flex-direction:column;gap:1px;min-width:0}
+.td-phasebadge .lab{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px}
+.td-phasebadge .nm{font-size:16px;font-weight:900;color:#fff}
+.td-phasebadge[data-ph="idle"]{border-color:var(--line2)}
+.td-phasebadge[data-ph="detect"]{border-color:var(--red);background:rgba(255,86,112,.12);box-shadow:0 0 18px rgba(255,86,112,.25)}
+.td-phasebadge[data-ph="detect"] .nm{color:#ffb6c1}
+.td-phasebadge[data-ph="forecast"]{border-color:var(--yellow);background:rgba(255,224,102,.1);box-shadow:0 0 18px rgba(255,224,102,.22)}
+.td-phasebadge[data-ph="forecast"] .nm{color:#ffe89a}
+.td-phasebadge[data-ph="schedule"]{border-color:var(--purple);background:rgba(139,108,255,.12);box-shadow:0 0 18px rgba(139,108,255,.25)}
+.td-phasebadge[data-ph="schedule"] .nm{color:#cbb6ff}
+.td-phasebadge[data-ph="causal"]{border-color:var(--green);background:rgba(40,209,124,.12);box-shadow:0 0 18px rgba(40,209,124,.25)}
+.td-phasebadge[data-ph="causal"] .nm{color:#a8f3cb}
+.td-phasebadge[data-ph="update"]{border-color:var(--cyan);background:rgba(35,199,223,.12);box-shadow:0 0 18px rgba(35,199,223,.25)}
+.td-phasebadge[data-ph="update"] .nm{color:#9fe9f5}
+.td-phasebadge.bump .ico{transform:scale(1.35)}
+
+/* mini phase steps row */
+.td-phase{display:flex;gap:4px;flex-wrap:wrap}
+.td-phase .p{
+  font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:6px;
+  background:#101c36;border:1px solid var(--line2);color:var(--muted);transition:all .3s;
+}
+.td-phase .p.active{color:#fff;border:none}
+.td-phase .p[data-ph="detect"].active{background:var(--red)}
+.td-phase .p[data-ph="forecast"].active{background:var(--orange);color:#3a2a06}
+.td-phase .p[data-ph="schedule"].active{background:var(--purple)}
+.td-phase .p[data-ph="causal"].active{background:var(--green);color:#04221a}
+.td-phase .p[data-ph="update"].active{background:var(--cyan);color:#04221a}
+
+/* IPO explain panel */
+.td-explain{
+  border:1px solid var(--line);border-radius:10px;background:#0b1328;padding:9px 11px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.td-explain .step-no{font-family:var(--mono);font-size:10.5px;color:#8fb3ff;font-weight:800}
+.td-explain .step-title{font-size:13.5px;font-weight:800;color:#fff;line-height:1.3}
+.td-ipo{display:flex;flex-direction:column;gap:5px;margin-top:2px}
+.td-ipo .row{
+  border-left:3px solid;border-radius:0 7px 7px 0;background:#101c36;padding:5px 9px;
+}
+.td-ipo .row .l{font-size:9px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;margin-bottom:1px}
+.td-ipo .row .v{font-size:11px;color:#e6edff;line-height:1.4}
+.td-ipo .row.in{border-color:#3d5b99}.td-ipo .row.in .l{color:#9ab0e6}
+.td-ipo .row.method{border-color:#5b3d99}.td-ipo .row.method .l{color:#cbb6ff}
+.td-ipo .row.out{border-color:#996b3d}.td-ipo .row.out .l{color:#ffd9a3}
+.td-ipo .row.next{border-color:#3d9963}.td-ipo .row.next .l{color:#a8f3cb}
+.td-ipo .row.method .v{font-family:var(--mono);font-size:10.5px}
+body:not(.td-tech) .td-ipo .row.method .v.formula{display:none}
+body:not(.td-tech) .td-ipo .row.method .v.plain{display:block}
+body.td-tech .td-ipo .row.method .v.plain{display:none}
+.td-ipo .row.method .v.plain{font-family:var(--sans);font-size:11px}
+
+/* 2D mini panel (calculation evidence) */
+.td-mini{
+  border:1px solid var(--line);border-radius:10px;background:#071022;padding:8px 10px;
+  flex:1;min-height:120px;display:flex;flex-direction:column;gap:5px;
+}
+.td-mini h6{margin:0;font-size:10.5px;color:#8fb3ff;font-weight:800;letter-spacing:.5px}
+.td-mini .chart{flex:1;min-height:90px;position:relative}
+.td-mini .chart svg{width:100%;height:100%}
+.td-mini .empty{color:var(--muted);font-size:10.5px;text-align:center;margin:auto}
+
+/* 3D view controls (view angle + modes) */
+.td-viewctrl{display:flex;gap:5px;flex-wrap:wrap}
+.td-vbtn{
+  font-size:10px;font-weight:700;padding:5px 8px;border-radius:7px;cursor:pointer;
+  background:#101c36;border:1px solid var(--line2);color:#cfe0ff;transition:all .2s;
+}
+.td-vbtn:hover{border-color:var(--blue);color:#fff}
+.td-vbtn.on{background:linear-gradient(135deg,var(--green),var(--cyan));color:#04221a;border:none}
+
+/* info popover for clicked object */
+.td-pop{
+  position:absolute;z-index:50;min-width:184px;max-width:240px;background:#0a1226;border:1.5px solid var(--line2);
+  border-radius:10px;padding:10px 12px;box-shadow:0 12px 30px rgba(0,0,0,.55);display:none;font-size:11px;
+}
+.td-pop.show{display:block}
+.td-pop h6{margin:0 0 6px;font-size:12.5px;font-weight:800;color:#fff;padding-right:16px}
+.td-pop .r{display:flex;justify-content:space-between;gap:10px;margin-bottom:3px}
+.td-pop .r .n{color:var(--muted);white-space:nowrap}
+.td-pop .r .v{font-family:var(--mono);font-weight:800;color:#cfe0ff;text-align:right}
+.td-pop .close{position:absolute;right:8px;top:6px;cursor:pointer;color:var(--muted);font-size:13px}
+
+@media(max-width:1500px){
+  .td-wrap{grid-template-columns:150px 1fr 270px}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div>
+      <h1>云计算存储 <span>智能均衡调度分析系统</span> · 项目展览版</h1>
+      <p>每个阶段独立讲解：<b style="color:#cfe0ff">输入 Input → 方法 Method → 输出 Output → 下一阶段如何使用 Next Use</b></p>
+    </div>
+    <div class="actions">
+      <button class="btn secondary" onclick="openSpec()">查看可复用逻辑规格</button>
+      <button class="btn secondary" onclick="resetAll()">重置当前阶段</button>
+      <button class="btn secondary" id="shotBtn" onclick="toggleShot()">📷 截图模式</button>
+      <button class="btn" id="playAllBtn" onclick="playAll()">▶ 播放全链路</button>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <nav class="tabs">
+    <div class="tab active" data-tab="overview" onclick="showStage('overview')"><div class="num">0</div><div><div class="t">项目总览</div><div class="s">系统边界 · 子课题关系</div></div></div>
+    <div class="tab" data-tab="detect" onclick="showStage('detect')"><div class="num">1</div><div><div class="t">多维负载检测 & 热点识别</div><div class="s">JUNHO JO · 调度前诊断</div></div></div>
+    <div class="tab" data-tab="forecast" onclick="showStage('forecast')"><div class="num">2</div><div><div class="t">负载预测</div><div class="s">林熙昊 · 卷级路由预测</div></div></div>
+    <div class="tab" data-tab="schedule" onclick="showStage('schedule')"><div class="num">3</div><div><div class="t">多目标调度</div><div class="s">凌海雯 · 跨可用区迁移</div></div></div>
+    <div class="tab" data-tab="causal" onclick="showStage('causal')"><div class="num">4</div><div><div class="t">因果验证</div><div class="s">梅元昊 · 事前风险评估</div></div></div>
+    <div class="tab" data-tab="logic" onclick="showStage('logic')"><div class="num">5</div><div><div class="t">全链路逻辑图</div><div class="s">端到端架构</div></div></div>
+    <div class="tab" data-tab="threed" onclick="showStage('threed')"><div class="num">6</div><div><div class="t">3D系统演示</div><div class="s">四层 · 全链路三维</div></div></div>
+  </nav>
+
+  <!-- =========================================================
+       STAGE 0  —  OVERVIEW
+       ========================================================= -->
+  <section class="panel active" id="overview">
+    <div class="stage">
+      <div class="stage-title">
+        <h2>0 · 项目总览：从云存储监控数据到执行决策的完整链路</h2>
+        <div class="right"><span class="pill"><i class="dot"></i>系统边界</span></div>
+      </div>
+      <div class="visual">
+        <div class="stage-badge">STAGE 0<small>项目总览</small></div>
+        <div class="ov-wrap">
+          <div class="ov-flow">
+            <div class="ov-step s0" id="ov-s0"><div class="n">DATA</div><div class="ttl">真实工业监控</div><div class="desc">system / node / port / volume</div></div>
+            <div class="ov-step s1" id="ov-s1"><div class="n">STAGE 1</div><div class="ttl">多维负载检测 & 热点识别</div><div class="desc">哪里已经不均衡？</div></div>
+            <div class="ov-step s2" id="ov-s2"><div class="n">STAGE 2</div><div class="ttl">负载预测</div><div class="desc">未来卷负载会怎样？</div></div>
+            <div class="ov-step s3" id="ov-s3"><div class="n">STAGE 3</div><div class="ttl">多目标调度</div><div class="desc">从哪里迁到哪里？</div></div>
+            <div class="ov-step s4" id="ov-s4"><div class="n">STAGE 4</div><div class="ttl">因果验证</div><div class="desc">真的降低风险吗？</div></div>
+          </div>
+          <div class="ov-arch">
+            <div class="ov-cloud">
+              <div class="biz">业务请求</div>
+              <div class="arr">↓</div>
+              <div class="lb-box">Load<br>Balancer</div>
+              <div class="arr">↓</div>
+              <div style="font-size:11px;color:var(--muted);text-align:center">分发到云存储资源池</div>
+            </div>
+            <div class="ov-pool">
+              <h4>云存储资源池：系统层 / 节点层 / 端口层 / 存储卷层</h4>
+              <div class="ov-row" id="ov-r-sys"><div class="rt">系统层｜整体负载背景</div>
+                <div class="ov-sys">
+                  <div class="k">imbalance 0.41</div>
+                  <div class="k">risk 8.65%</div>
+                  <div class="k" style="color:#ffb6c1">Top1 Share 0.58</div>
+                  <div class="k">UCL 0.32</div>
+                </div>
+              </div>
+              <div class="ov-row" id="ov-r-node"><div class="rt">节点层｜热点定位对象</div>
+                <div class="ov-nodes">
+                  <div class="ov-nb">Node A · 42%</div>
+                  <div class="ov-nb">Node B · 51%</div>
+                  <div class="ov-nb hot">Node C · 91%（热点）</div>
+                </div>
+              </div>
+              <div class="ov-row" id="ov-r-port"><div class="rt">端口层｜细粒度传输压力</div>
+                <div class="ov-ports">
+                  <div class="ov-pt">P1</div><div class="ov-pt">P2</div><div class="ov-pt">P3</div>
+                  <div class="ov-pt">P4</div><div class="ov-pt">P5</div><div class="ov-pt hot">P6</div>
+                  <div class="ov-pt">P7</div><div class="ov-pt">P8</div>
+                </div>
+              </div>
+              <div class="ov-row" id="ov-r-vol"><div class="rt">存储卷层｜调度迁移对象（V3 / V5 / V14 为热点候选）</div>
+                <div class="ov-vols">
+                  <div class="ov-vl">V1</div><div class="ov-vl">V2</div><div class="ov-vl hot">V3</div>
+                  <div class="ov-vl">V4</div><div class="ov-vl hot">V5</div><div class="ov-vl">V6</div>
+                  <div class="ov-vl">V7</div><div class="ov-vl">V8</div><div class="ov-vl">V9</div>
+                  <div class="ov-vl">V10</div><div class="ov-vl">V11</div><div class="ov-vl">V12</div>
+                  <div class="ov-vl">V13</div><div class="ov-vl hot">V14</div><div class="ov-vl">V15</div>
+                  <div class="ov-vl">V16</div><div class="ov-vl">V17</div><div class="ov-vl">V18</div>
+                  <div class="ov-vl">V19</div><div class="ov-vl">V20</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- CONTROL BAR -->
+      <div class="ctrl" data-stage="overview">
+        <div class="ctrl-btns">
+          <button class="ctrl-btn primary" data-act="play">▶ 播放</button>
+          <button class="ctrl-btn" data-act="pause" title="暂停">⏸</button>
+          <button class="ctrl-btn" data-act="prev" title="上一步">◀◀</button>
+          <button class="ctrl-btn" data-act="next" title="下一步">▶▶</button>
+          <button class="ctrl-btn" data-act="replay" title="重播当前阶段">↻</button>
+        </div>
+        <div class="ctrl-narration">
+          <div class="ctrl-step"><span class="s-now">0</span><span class="s-tot"> / 0</span></div>
+          <div class="ctrl-text">
+            <div class="ctrl-title">点击「▶ 播放」开始讲解</div>
+            <div class="ctrl-narr">本阶段先勾勒系统边界，再依次点亮 Stage 1 → Stage 4 的依赖关系。</div>
+          </div>
+        </div>
+        <div class="ctrl-mode">模式：<b>讲解</b></div>
+      </div>
+      <!-- IO -->
+      <div class="iobar-head collapsed" onclick="toggleIO(this)"><div class="t"><span class="chev">▼</span> Input · Method · Output · Next Use</div><div class="hint">点击展开 / 收起阶段说明</div></div>
+      <div class="iomn collapsed">
+        <div class="io-card"><div class="lbl">📥 INPUT</div><div class="body">业务请求 → Load Balancer → 系统/节点/端口/存储卷四层。真实工业云存储监控数据持续进入。</div></div>
+        <div class="io-card method"><div class="lbl">⚙ METHOD</div><div class="body">将「监控 → 检测 → 预测 → 调度 → 验证 → 执行」串成完整链路，四个子课题前后依赖。</div><div class="formula">D = {(t, s, l, e, r, m, x)}  ← 统一长表
+l ∈ {system, node, port, volume}</div></div>
+        <div class="io-card"><div class="lbl">📤 OUTPUT</div><div class="body">每一阶段都会向下一阶段输出明确产物，最终决定是否下发执行。</div>
+          <div class="kpis"><span class="kpi-pill">Node 859</span><span class="kpi-pill">Port 370</span><span class="kpi-pill green">Risk 8.65→4.07%</span></div>
+        </div>
+        <div class="io-card"><div class="lbl">⏭ NEXT USE</div><div class="body">Stage 1 提供热点 + 候选卷 → Stage 2 预测 → Stage 3 生成迁移方案 → Stage 4 因果验证 → 执行。</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       STAGE 1  —  DETECT
+       ========================================================= -->
+  <section class="panel" id="detect">
+    <div class="stage">
+      <div class="stage-title">
+        <h2>1 · 多维负载检测与热点识别 — JUNHO JO</h2>
+        <div class="right">
+          <span class="pill"><i class="dot red"></i>规则主线</span>
+          <span class="pill"><i class="dot purple"></i>Metric Learning 扩展</span>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="stage-badge">STAGE 1<small>热点检测</small></div>
+        <div class="det-wrap">
+          <!-- timeline -->
+          <div class="det-timeline">
+            <div class="lbl">时间窗口</div>
+            <span class="lab t0">t₀ 正常</span>
+            <div class="track">
+              <div class="fill" id="det-tl-fill"></div>
+              <div class="ticks"><span></span><span></span><span></span><span></span><span></span></div>
+              <div class="markers"><div class="marker" id="det-tl-now" style="left:0%"></div></div>
+            </div>
+            <span class="lab tn">t₅ 触发热点</span>
+          </div>
+
+          <!-- main 3 columns -->
+          <div class="det-main">
+            <!-- INPUT -->
+            <div class="det-input">
+              <h5>INPUT｜真实工业监控数据</h5>
+              <div class="det-cloud">业务请求</div>
+              <div class="det-arrow">↓</div>
+              <div class="det-lb">Load Balancer</div>
+              <div class="det-arrow">↓</div>
+              <div class="det-formula">
+                <div class="fl-lbl">// 统一长表</div>
+                D = {(t, s, l, e, r, m, x)}
+                l ∈ {sys, node, port}
+              </div>
+              <div class="det-formula">
+                <div class="fl-lbl">// 实体负载向量</div>
+                v(e,t) = [r₁,r₂,…,r_K]
+              </div>
+              <!-- spike filter comparison -->
+              <div class="det-spc" id="det-spc">
+                <div class="case filtered">
+                  <h6>短时 spike<span class="badge">已过滤</span></h6>
+                  <svg viewBox="0 0 120 64" preserveAspectRatio="none" id="det-spc-a"></svg>
+                  <div class="note">单点突刺未持续 → 不满足 persistent window，被滤除</div>
+                </div>
+                <div class="case retained">
+                  <h6>持续热点<span class="badge">保留</span></h6>
+                  <svg viewBox="0 0 120 64" preserveAspectRatio="none" id="det-spc-b"></svg>
+                  <div class="note">连续超 UCL + 通过 load_gate → 生成 hotspot event</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TOPOLOGY -->
+            <div class="det-topo">
+              <h4>云存储资源池拓扑（统一上下文）</h4>
+              <div class="det-row r-sys" id="det-row-sys">
+                <div class="rt">系统层｜不均衡指标</div>
+                <div class="det-sys" id="det-sys-kpis">
+                  <div class="k" data-k="gini">Gini <b id="det-k-gini">0.18</b></div>
+                  <div class="k" data-k="hhi">HHI <b id="det-k-hhi">0.21</b></div>
+                  <div class="k" data-k="theil">Theil <b id="det-k-theil">0.09</b></div>
+                  <div class="k" data-k="top1">Top1 <b id="det-k-top1">0.32</b></div>
+                  <div class="k" data-k="ucl">UCL <b id="det-k-ucl">0.32</b></div>
+                </div>
+              </div>
+              <div class="det-row r-node" id="det-row-node">
+                <div class="rt">节点层｜热点定位对象</div>
+                <div class="det-node" id="det-node-A" data-state="cool"><div class="nm">Node A</div><div class="ld" id="det-load-A">42%</div></div>
+                <div class="det-node" id="det-node-B" data-state="cool"><div class="nm">Node B</div><div class="ld" id="det-load-B">51%</div></div>
+                <div class="det-node" id="det-node-C" data-state="cool"><div class="nm">Node C</div><div class="ld" id="det-load-C">55%</div></div>
+              </div>
+              <div class="det-row r-port" id="det-row-port">
+                <div class="rt">端口层｜细粒度传输</div>
+                <div class="det-port" id="det-p-1" data-state="cool">P1</div>
+                <div class="det-port" id="det-p-2" data-state="cool">P2</div>
+                <div class="det-port" id="det-p-3" data-state="cool">P3</div>
+                <div class="det-port" id="det-p-4" data-state="cool">P4</div>
+                <div class="det-port" id="det-p-5" data-state="cool">P5</div>
+                <div class="det-port" id="det-p-6" data-state="cool">P6</div>
+                <div class="det-port" id="det-p-7" data-state="cool">P7</div>
+                <div class="det-port" id="det-p-8" data-state="cool">P8</div>
+              </div>
+              <!-- request flow svg -->
+              <svg class="det-flow" id="det-flow-svg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+            </div>
+
+            <!-- RESULT -->
+            <div class="det-result" id="det-result">
+              <div class="stamp" id="det-stamp">待检测</div>
+              <h5>OUTPUT｜热点事件 & 候选卷</h5>
+              <div class="det-finding">
+                <div class="ttl">触发热点等级</div>
+                <div class="v" id="det-finding-level">—</div>
+                <div class="sub" id="det-finding-cause">尚未触发：等待持续窗口 + 负载门控</div>
+              </div>
+              <div class="det-finding">
+                <div class="ttl">关键实体</div>
+                <div class="v" id="det-finding-entity">—</div>
+                <div class="sub">Node × 859 events ｜ Port × 370 events</div>
+              </div>
+              <div>
+                <div style="font-size:10.5px;color:#8fb3ff;font-weight:800;letter-spacing:.6px;margin-bottom:5px">候选卷 Top-K（送往 Stage 2/3）</div>
+                <div class="vols">
+                  <div class="vol" id="det-vol-V3">V3</div>
+                  <div class="vol" id="det-vol-V5">V5</div>
+                  <div class="vol" id="det-vol-V14">V14</div>
+                  <div class="vol" id="det-vol-V9">V9</div>
+                </div>
+              </div>
+              <div class="ml" id="det-ml">
+                <div class="ttl">Metric Learning 扩展（规则边界外）</div>
+                <div class="row"><span>AUC</span><b>0.744 → <span style="color:#a8f3cb">0.800</span></b></div>
+                <div class="row"><span>Triplet Acc</span><b>0.592 → <span style="color:#a8f3cb">0.777</span></b></div>
+                <div class="row"><span>Distance Gap</span><b>0.080 → <span style="color:#a8f3cb">1.787</span></b></div>
+                <div class="row"><span>Learned-only 候选</span><b style="color:#a8f3cb">+4243</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ctrl" data-stage="detect">
+        <div class="ctrl-btns">
+          <button class="ctrl-btn primary" data-act="play">▶ 播放</button>
+          <button class="ctrl-btn" data-act="pause" title="暂停">⏸</button>
+          <button class="ctrl-btn" data-act="prev" title="上一步">◀◀</button>
+          <button class="ctrl-btn" data-act="next" title="下一步">▶▶</button>
+          <button class="ctrl-btn" data-act="replay" title="重播当前阶段">↻</button>
+        </div>
+        <div class="ctrl-narration">
+          <div class="ctrl-step"><span class="s-now">0</span><span class="s-tot"> / 6</span></div>
+          <div class="ctrl-text">
+            <div class="ctrl-title">Stage 1 · 待开始</div>
+            <div class="ctrl-narr">点击「▶ 播放」自动演示六个步骤；或用「▶▶ / ◀◀」单步控制。</div>
+          </div>
+        </div>
+        <div class="ctrl-mode">阶段：<b>检测</b></div>
+      </div>
+      <div class="iobar-head collapsed" onclick="toggleIO(this)"><div class="t"><span class="chev">▼</span> Input · Method · Output · Next Use</div><div class="hint">点击展开 / 收起阶段说明</div></div>
+      <div class="iomn collapsed">
+        <div class="io-card"><div class="lbl">📥 INPUT</div>
+          <div class="body">真实工业云存储监控数据：系统层 / 节点层 / 端口层；统一为长表 D。</div>
+          <div class="formula">D = {(t,s,l,e,r,m,x)}
+v(e,t) = [r₁,r₂,…,r_K]</div>
+        </div>
+        <div class="io-card"><div class="lbl">⚙ METHOD</div>
+          <div class="body">Gini / HHI / Theil / Top1 + Median-MAD SPC + 持续窗口 + 负载门控 + Triplet metric。</div>
+          <div class="formula">UCL = Median + k·1.4826·MAD
+Hotspot = {imbalance>UCL} ∩ {persistent} ∩ {load_gate}
+d_A(xᵢ,xⱼ)² = (xᵢ−xⱼ)ᵀA(xᵢ−xⱼ)
+d(A,P)+margin &lt; d(A,N)</div>
+        </div>
+        <div class="io-card"><div class="lbl">📤 OUTPUT</div>
+          <div class="body">热点节点 / 端口、触发指标、热点等级、关键实体、候选卷 Top-K。</div>
+          <div class="kpis">
+            <span class="kpi-pill red">Node 859</span>
+            <span class="kpi-pill red">Port 370</span>
+            <span class="kpi-pill green">AUC 0.744→0.800</span>
+            <span class="kpi-pill orange">Acc 0.592→0.777</span>
+          </div>
+        </div>
+        <div class="io-card"><div class="lbl">⏭ NEXT USE</div>
+          <div class="body">Stage 2 取候选卷做趋势预测；Stage 3 用热点节点作为迁移源；Stage 4 取关键实体做因果建模根节点。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 2 — FORECAST -->
+  <section class="panel" id="forecast">
+    <div class="stage">
+      <div class="stage-title">
+        <h2>2 · 负载预测 — 林熙昊</h2>
+        <div class="right">
+          <span class="pill"><i class="dot yellow"></i>分支路由 6 类</span>
+          <span class="pill"><i class="dot orange"></i>未来风险窗口</span>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="stage-badge">STAGE 2<small>负载预测</small></div>
+        <div class="fc-wrap">
+          <div class="fc-col">
+            <h5>📥 INPUT｜Stage 1 候选卷</h5>
+            <p class="dim">从热点候选 Top-K 取 V3 / V5 / V14 / V9 进入预测器。</p>
+            <div class="fc-vols" id="fc-vols">
+              <div class="fc-vol" data-v="V3">V3<div class="lab">spike</div></div>
+              <div class="fc-vol" data-v="V5">V5<div class="lab">period</div></div>
+              <div class="fc-vol" data-v="V14">V14<div class="lab">trend</div></div>
+              <div class="fc-vol" data-v="V9">V9<div class="lab">stable</div></div>
+            </div>
+            <h5 style="margin-top:6px">统计特征（按窗口）</h5>
+            <div class="fc-features" id="fc-features">
+              <div class="fc-feat"><span>zero_ratio</span><b id="ff-zr">0.04</b></div>
+              <div class="fc-feat"><span>CV</span><b id="ff-cv">0.31</b></div>
+              <div class="fc-feat"><span>slope</span><b id="ff-slope">0.018</b></div>
+              <div class="fc-feat"><span>volatility</span><b id="ff-vol">0.42</b></div>
+              <div class="fc-feat"><span>spike</span><b id="ff-spike">2.1</b></div>
+              <div class="fc-feat"><span>period</span><b id="ff-per">24h</b></div>
+            </div>
+            <h5 style="margin-top:6px">METHOD｜分支路由</h5>
+            <div class="fc-routes" id="fc-routes">
+              <div class="fc-route" data-r="INA"><div class="tag">INA</div><h6>不活跃</h6><p>低均值低方差 → SES</p></div>
+              <div class="fc-route" data-r="PER"><div class="tag">PER</div><h6>周期型</h6><p>显著周期 → Holt-Winters</p></div>
+              <div class="fc-route" data-r="SSP"><div class="tag">SSP</div><h6>稀疏 spike</h6><p>大量 0 + 突发 → Croston</p></div>
+              <div class="fc-route" data-r="HVL"><div class="tag">HVL</div><h6>高波动</h6><p>高 CV → RDR / TCN</p></div>
+              <div class="fc-route" data-r="STA"><div class="tag">STA</div><h6>稳定型</h6><p>低 CV 平稳 → SES</p></div>
+              <div class="fc-route" data-r="CPX"><div class="tag">CPX</div><h6>复杂型</h6><p>多模式 → TCN</p></div>
+            </div>
+          </div>
+          <div class="fc-col">
+            <div class="fc-mainchart" id="fc-mainchart">
+              <div class="chart-title" id="fc-chart-title">候选卷负载预测：历史 + 现在 + 未来风险窗口</div>
+              <div class="chart-leg">
+                <span><i style="background:#4f8cff"></i>历史</span>
+                <span><i style="background:#23c7df"></i>当前</span>
+                <span><i style="background:#ffb84d"></i>预测</span>
+                <span><i style="background:#ff5670;opacity:.4"></i>风险窗口</span>
+              </div>
+              <svg id="fc-svg" viewBox="0 0 800 320" preserveAspectRatio="none"></svg>
+            </div>
+            <div class="fc-features" style="grid-template-columns:repeat(4,1fr)">
+              <div class="fc-feat"><span>Avg R²</span><b id="fc-r2">0.26 → 0.30</b></div>
+              <div class="fc-feat"><span>HVL R²</span><b id="fc-hvl">0.19 → 0.25</b></div>
+              <div class="fc-feat"><span>MAPE</span><b>−14%</b></div>
+              <div class="fc-feat"><span>MASE</span><b>−9%</b></div>
+            </div>
+          </div>
+          <div class="fc-col">
+            <h5>📤 OUTPUT｜forecast_view</h5>
+            <p class="dim">未来高风险时间窗，作为 Stage 3 调度的前瞻性约束。</p>
+            <div class="fc-out-list" id="fc-out-list">
+              <div class="fc-out-item" id="fc-out-V3"><div class="nm">V3 <span class="badge">SSP · Croston</span></div><div class="vv">+47% spike</div><div class="tip">未来 6h 内将出现稀疏突发</div></div>
+              <div class="fc-out-item" id="fc-out-V5"><div class="nm">V5 <span class="badge">PER · Holt-W</span></div><div class="vv">峰值 t+18h</div><div class="tip">日周期，第二天高峰前迁移</div></div>
+              <div class="fc-out-item" id="fc-out-V14"><div class="nm">V14 <span class="badge">HVL · TCN</span></div><div class="vv">+62% trend</div><div class="tip">高波动持续上升，高优先级</div></div>
+              <div class="fc-out-item" id="fc-out-V9"><div class="nm">V9 <span class="badge">STA · SES</span></div><div class="vv">+5% flat</div><div class="tip">趋势稳定，低优先级</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ctrl" data-stage="forecast">
+        <div class="ctrl-btns">
+          <button class="ctrl-btn primary" data-act="play">▶ 播放</button>
+          <button class="ctrl-btn" data-act="pause">⏸</button>
+          <button class="ctrl-btn" data-act="prev">◀◀</button>
+          <button class="ctrl-btn" data-act="next">▶▶</button>
+          <button class="ctrl-btn" data-act="replay">↻</button>
+        </div>
+        <div class="ctrl-narration">
+          <div class="ctrl-step"><span class="s-now">0</span><span class="s-tot"> / 5</span></div>
+          <div class="ctrl-text">
+            <div class="ctrl-title">Stage 2 · 待开始</div>
+            <div class="ctrl-narr">候选卷 → 特征提取 → 分支路由 → 模型预测 → 风险窗口。</div>
+          </div>
+        </div>
+        <div class="ctrl-mode">阶段：<b>预测</b></div>
+      </div>
+      <div class="iobar-head collapsed" onclick="toggleIO(this)"><div class="t"><span class="chev">▼</span> Input · Method · Output · Next Use</div><div class="hint">点击展开 / 收起阶段说明</div></div>
+      <div class="iomn collapsed">
+        <div class="io-card"><div class="lbl">📥 INPUT</div><div class="body">Stage 1 输出的候选卷 + 历史时间序列。</div></div>
+        <div class="io-card method"><div class="lbl">⚙ METHOD</div>
+          <div class="body">特征提取（zero_ratio / CV / slope / volatility / spike / periodicity）→ 路由到 6 类分支 → 不同模型预测。</div>
+          <div class="formula">INA→SES, PER→Holt-Winters
+SSP→Croston, HVL→RDR/TCN
+STA→SES, CPX→TCN</div>
+        </div>
+        <div class="io-card"><div class="lbl">📤 OUTPUT</div><div class="body">每个候选卷的未来曲线 + 风险窗口 forecast_view。</div>
+          <div class="kpis"><span class="kpi-pill green">Avg R² 0.26→0.30</span><span class="kpi-pill green">HVL R² 0.19→0.25</span></div>
+        </div>
+        <div class="io-card"><div class="lbl">⏭ NEXT USE</div><div class="body">Stage 3 多目标调度把 forecast_view 作为前瞻约束，优先调度即将上升的高风险卷。</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 3 — SCHEDULE -->
+  <section class="panel" id="schedule">
+    <div class="stage">
+      <div class="stage-title">
+        <h2>3 · 多目标调度优化 — 凌海雯</h2>
+        <div class="right">
+          <span class="pill"><i class="dot purple"></i>跨可用区迁移</span>
+          <span class="pill"><i class="dot orange"></i>DP-NSGA-II Pareto</span>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="stage-badge">STAGE 3<small>多目标调度</small></div>
+        <div class="sc-wrap">
+          <div class="sc-az-row" id="sc-az-row">
+            <div class="sc-az src">
+              <h5>AZ-East-1a · 高负载源 <span class="tag">SOURCE</span></h5>
+              <div class="sc-hosts">
+                <div class="sc-host hot" id="sc-h-j19">
+                  <h6>host-j19</h6>
+                  <div class="sc-mt"><span class="lbl">CPU</span><div class="tk"><div class="fl" id="sc-h-j19-cpu" style="width:88%"></div></div><span class="vv" id="sc-h-j19-cpu-v">88%</span></div>
+                  <div class="sc-mt"><span class="lbl">Mem</span><div class="tk"><div class="fl" id="sc-h-j19-mem" style="width:81%"></div></div><span class="vv" id="sc-h-j19-mem-v">81%</span></div>
+                  <div class="sc-mt"><span class="lbl">IOPS</span><div class="tk"><div class="fl" id="sc-h-j19-io"  style="width:92%"></div></div><span class="vv" id="sc-h-j19-io-v">92%</span></div>
+                  <div class="sc-vmlist"><span class="sc-vm" id="sc-vm-V5">V5</span><span class="sc-vm">V11</span><span class="sc-vm">V22</span></div>
+                </div>
+                <div class="sc-host hot" id="sc-h-j119">
+                  <h6>host-j119</h6>
+                  <div class="sc-mt"><span class="lbl">CPU</span><div class="tk"><div class="fl" id="sc-h-j119-cpu" style="width:84%"></div></div><span class="vv" id="sc-h-j119-cpu-v">84%</span></div>
+                  <div class="sc-mt"><span class="lbl">Mem</span><div class="tk"><div class="fl" id="sc-h-j119-mem" style="width:79%"></div></div><span class="vv" id="sc-h-j119-mem-v">79%</span></div>
+                  <div class="sc-mt"><span class="lbl">IOPS</span><div class="tk"><div class="fl" id="sc-h-j119-io"  style="width:88%"></div></div><span class="vv" id="sc-h-j119-io-v">88%</span></div>
+                  <div class="sc-vmlist"><span class="sc-vm" id="sc-vm-V14">V14</span><span class="sc-vm">V31</span><span class="sc-vm">V42</span></div>
+                </div>
+                <div class="sc-host hot" id="sc-h-j22">
+                  <h6>host-j22</h6>
+                  <div class="sc-mt"><span class="lbl">CPU</span><div class="tk"><div class="fl" id="sc-h-j22-cpu" style="width:86%"></div></div><span class="vv" id="sc-h-j22-cpu-v">86%</span></div>
+                  <div class="sc-mt"><span class="lbl">Mem</span><div class="tk"><div class="fl" id="sc-h-j22-mem" style="width:82%"></div></div><span class="vv" id="sc-h-j22-mem-v">82%</span></div>
+                  <div class="sc-mt"><span class="lbl">IOPS</span><div class="tk"><div class="fl" id="sc-h-j22-io"  style="width:90%"></div></div><span class="vv" id="sc-h-j22-io-v">90%</span></div>
+                  <div class="sc-vmlist"><span class="sc-vm" id="sc-vm-V9">V9</span><span class="sc-vm">V51</span><span class="sc-vm">V60</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="sc-bridge" id="sc-bridge">
+              <div class="lb algo">DP-NSGA-II<br>多目标优化</div>
+              <div class="sc-arrow">⇒</div>
+              <div class="lb">候选方案<br>DMA～DMG</div>
+              <div class="sc-arrow">⇒</div>
+              <div class="lb" style="border-color:var(--green);color:#a8f3cb">推荐方案<br><b>DMD</b></div>
+            </div>
+            <div class="sc-az tgt">
+              <h5>AZ-East-1b · 低负载目标 <span class="tag">TARGET</span></h5>
+              <div class="sc-hosts">
+                <div class="sc-host target" id="sc-h-j13">
+                  <h6>host-j13</h6>
+                  <div class="sc-mt"><span class="lbl">CPU</span><div class="tk"><div class="fl" id="sc-h-j13-cpu" style="width:38%"></div></div><span class="vv" id="sc-h-j13-cpu-v">38%</span></div>
+                  <div class="sc-mt"><span class="lbl">Mem</span><div class="tk"><div class="fl" id="sc-h-j13-mem" style="width:31%"></div></div><span class="vv" id="sc-h-j13-mem-v">31%</span></div>
+                  <div class="sc-mt"><span class="lbl">IOPS</span><div class="tk"><div class="fl" id="sc-h-j13-io"  style="width:42%"></div></div><span class="vv" id="sc-h-j13-io-v">42%</span></div>
+                  <div class="sc-vmlist"><span class="sc-vm">V_a</span><span class="sc-vm">V_b</span></div>
+                </div>
+                <div class="sc-host target" id="sc-h-j97">
+                  <h6>host-j97</h6>
+                  <div class="sc-mt"><span class="lbl">CPU</span><div class="tk"><div class="fl" id="sc-h-j97-cpu" style="width:35%"></div></div><span class="vv" id="sc-h-j97-cpu-v">35%</span></div>
+                  <div class="sc-mt"><span class="lbl">Mem</span><div class="tk"><div class="fl" id="sc-h-j97-mem" style="width:29%"></div></div><span class="vv" id="sc-h-j97-mem-v">29%</span></div>
+                  <div class="sc-mt"><span class="lbl">IOPS</span><div class="tk"><div class="fl" id="sc-h-j97-io"  style="width:40%"></div></div><span class="vv" id="sc-h-j97-io-v">40%</span></div>
+                  <div class="sc-vmlist"><span class="sc-vm">V_c</span><span class="sc-vm">V_d</span></div>
+                </div>
+                <div class="sc-host target" id="sc-h-j81">
+                  <h6>host-j81</h6>
+                  <div class="sc-mt"><span class="lbl">CPU</span><div class="tk"><div class="fl" id="sc-h-j81-cpu" style="width:41%"></div></div><span class="vv" id="sc-h-j81-cpu-v">41%</span></div>
+                  <div class="sc-mt"><span class="lbl">Mem</span><div class="tk"><div class="fl" id="sc-h-j81-mem" style="width:34%"></div></div><span class="vv" id="sc-h-j81-mem-v">34%</span></div>
+                  <div class="sc-mt"><span class="lbl">IOPS</span><div class="tk"><div class="fl" id="sc-h-j81-io"  style="width:45%"></div></div><span class="vv" id="sc-h-j81-io-v">45%</span></div>
+                  <div class="sc-vmlist"><span class="sc-vm">V_e</span><span class="sc-vm">V_f</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="sc-bottom">
+            <div class="sc-compare">
+              <h5>📊 调度前后对比（预估）</h5>
+              <div class="sc-compare-grid">
+                <div class="sc-cmp"><span class="nm">imbalance</span><div class="row"><span class="before">0.41</span><span class="arrow">→</span><span class="after">0.30</span></div></div>
+                <div class="sc-cmp"><span class="nm">migration cost</span><div class="row"><span class="after">350</span></div></div>
+                <div class="sc-cmp"><span class="nm">DP-NSGA-II 收敛</span><div class="row"><span class="after">2.8 epochs</span></div></div>
+                <div class="sc-cmp"><span class="nm">候选方案数</span><div class="row"><span class="after">7</span></div></div>
+              </div>
+            </div>
+            <div class="sc-pareto">
+              <h5>🎯 Pareto Front（成本 vs 均衡改善）</h5>
+              <svg id="sc-pareto-svg" viewBox="0 0 320 140" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ctrl" data-stage="schedule">
+        <div class="ctrl-btns">
+          <button class="ctrl-btn primary" data-act="play">▶ 播放</button>
+          <button class="ctrl-btn" data-act="pause">⏸</button>
+          <button class="ctrl-btn" data-act="prev">◀◀</button>
+          <button class="ctrl-btn" data-act="next">▶▶</button>
+          <button class="ctrl-btn" data-act="replay">↻</button>
+        </div>
+        <div class="ctrl-narration">
+          <div class="ctrl-step"><span class="s-now">0</span><span class="s-tot"> / 5</span></div>
+          <div class="ctrl-text">
+            <div class="ctrl-title">Stage 3 · 待开始</div>
+            <div class="ctrl-narr">迁移前 → 选择方案 → 迁移中 → 迁移后 → 送往因果验证。</div>
+          </div>
+        </div>
+        <div class="ctrl-mode">阶段：<b>调度</b></div>
+      </div>
+      <div class="iobar-head collapsed" onclick="toggleIO(this)"><div class="t"><span class="chev">▼</span> Input · Method · Output · Next Use</div><div class="hint">点击展开 / 收起阶段说明</div></div>
+      <div class="iomn collapsed">
+        <div class="io-card"><div class="lbl">📥 INPUT</div><div class="body">Stage 1 热点节点 / 候选卷 + Stage 2 forecast_view。</div></div>
+        <div class="io-card method"><div class="lbl">⚙ METHOD</div>
+          <div class="body">DP-NSGA-II 多目标优化：均衡改善、迁移成本、容量约束、业务优先级、未来负载风险。</div>
+          <div class="formula">min  F = (cost, imbalance, risk)
+s.t.  capacity, business priority</div>
+        </div>
+        <div class="io-card"><div class="lbl">📤 OUTPUT</div><div class="body">candidate_plans = {DMA…DMG}（不直接执行，需 Stage 4 验证）。</div>
+          <div class="kpis"><span class="kpi-pill green">imbalance 0.41→0.30</span><span class="kpi-pill orange">cost 350</span></div>
+        </div>
+        <div class="io-card"><div class="lbl">⏭ NEXT USE</div><div class="body">Stage 4 取 candidate_plans 做因果路径模拟，决定是否下发执行。</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 4 — CAUSAL -->
+  <section class="panel" id="causal">
+    <div class="stage">
+      <div class="stage-title">
+        <h2>4 · 因果驱动调度验证 — 梅元昊</h2>
+        <div class="right">
+          <span class="pill"><i class="dot green"></i>事前验证（非事后评价）</span>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="stage-badge">STAGE 4<small>因果验证</small></div>
+        <div class="cs-wrap">
+          <div class="cs-pipe" id="cs-pipe">
+            <div class="step s1"><div class="n">STEP 1</div><div class="t">异常检测</div><div class="d">3σ 水平异常 + 差分 z-score 变化异常</div></div>
+            <div class="step s2"><div class="n">STEP 2</div><div class="t">因果路径</div><div class="d">Volume→Node→System</div></div>
+            <div class="step s3"><div class="n">STEP 3</div><div class="t">Monte Carlo 模拟</div><div class="d">DMA～DMG 各方案系统异常率分布</div></div>
+            <div class="step s4"><div class="n">STEP 4</div><div class="t">Bootstrap CI</div><div class="d">置信区间 [3.81%, 4.32%]</div></div>
+            <div class="step s5"><div class="n">STEP 5</div><div class="t">方案排序 & 决策</div><div class="d">推荐 DMD：通过 → 下发执行</div></div>
+          </div>
+          <div class="cs-main">
+            <div class="cs-card">
+              <h5>异常检测（三层）</h5>
+              <p class="dim">水平异常：3σ；变化异常：差分 z-score（同时检测时间共现）。</p>
+              <div class="cs-anom">
+                <div class="cs-anom-block">
+                  <div class="lbl">VOLUME 卷层（变化异常）</div>
+                  <div class="ch"><svg id="cs-anom-vol" viewBox="0 0 220 48" preserveAspectRatio="none"></svg></div>
+                </div>
+                <div class="cs-anom-block">
+                  <div class="lbl">NODE 节点层（水平异常）</div>
+                  <div class="ch"><svg id="cs-anom-node" viewBox="0 0 220 48" preserveAspectRatio="none"></svg></div>
+                </div>
+                <div class="cs-anom-block">
+                  <div class="lbl">SYSTEM 系统层（最终风险）</div>
+                  <div class="ch"><svg id="cs-anom-sys" viewBox="0 0 220 48" preserveAspectRatio="none"></svg></div>
+                </div>
+              </div>
+            </div>
+            <div class="cs-card">
+              <h5>因果路径 DAG</h5>
+              <p class="dim">卷异常 → 节点异常 → 系统异常；卷→节点用 Deoxys 时间共现，节点→系统用 OLS 滞后回归。</p>
+              <div class="cs-dag" id="cs-dag">
+                <svg id="cs-dag-svg" viewBox="0 0 600 320" preserveAspectRatio="none">
+                  <defs>
+                    <marker id="cs-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                      <path d="M0,0 L10,5 L0,10 Z" fill="#4f8cff"/>
+                    </marker>
+                    <marker id="cs-arrow-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                      <path d="M0,0 L10,5 L0,10 Z" fill="#ff5670"/>
+                    </marker>
+                  </defs>
+                </svg>
+                <div class="cs-dnode vol" style="left:6%;top:14%">V3<div class="sub">spike</div></div>
+                <div class="cs-dnode vol" style="left:6%;top:42%">V5<div class="sub">period</div></div>
+                <div class="cs-dnode vol" style="left:6%;top:70%">V14<div class="sub">trend</div></div>
+                <div class="cs-dnode node" id="cs-d-na" style="left:42%;top:18%">host-j19<div class="sub">node</div></div>
+                <div class="cs-dnode node" id="cs-d-nb" style="left:42%;top:48%">host-j119<div class="sub">node</div></div>
+                <div class="cs-dnode node" id="cs-d-nc" style="left:42%;top:78%">host-j22<div class="sub">node</div></div>
+                <div class="cs-dnode sys" id="cs-d-sys" style="left:78%;top:46%">SYSTEM<div class="sub">overall risk</div></div>
+                <div class="cs-dlbl" style="left:23%;top:5%">Deoxys 时间共现</div>
+                <div class="cs-dlbl" style="left:60%;top:5%">OLS 滞后回归</div>
+              </div>
+            </div>
+            <div class="cs-card">
+              <h5>Monte Carlo 风险模拟</h5>
+              <p class="dim">对 candidate_plans 各方案做 N 次模拟，估计系统异常率分布。</p>
+              <div class="cs-hist"><svg id="cs-hist-svg" viewBox="0 0 320 120" preserveAspectRatio="none"></svg></div>
+              <h6>方案排序（系统异常率，越低越好）</h6>
+              <div class="cs-plans" id="cs-plans">
+                <div class="cs-plan worst" data-p="DMA"><span class="nm">DMA</span><div class="bar"><div class="fl" data-tw="92"></div></div><span class="pct">8.41%</span></div>
+                <div class="cs-plan" data-p="DMB"><span class="nm">DMB</span><div class="bar"><div class="fl" data-tw="74"></div></div><span class="pct">6.82%</span></div>
+                <div class="cs-plan" data-p="DMC"><span class="nm">DMC</span><div class="bar"><div class="fl" data-tw="58"></div></div><span class="pct">5.31%</span></div>
+                <div class="cs-plan recommended" data-p="DMD"><span class="nm">DMD ★</span><div class="bar"><div class="fl" data-tw="44"></div></div><span class="pct">4.07%</span></div>
+                <div class="cs-plan" data-p="DME"><span class="nm">DME</span><div class="bar"><div class="fl" data-tw="51"></div></div><span class="pct">4.71%</span></div>
+                <div class="cs-plan" data-p="DMF"><span class="nm">DMF</span><div class="bar"><div class="fl" data-tw="63"></div></div><span class="pct">5.84%</span></div>
+                <div class="cs-plan" data-p="DMG"><span class="nm">DMG</span><div class="bar"><div class="fl" data-tw="69"></div></div><span class="pct">6.31%</span></div>
+              </div>
+              <div class="cs-decision" id="cs-decision">
+                ✅ 推荐 DMD：8.65% → 4.07%（改善 52.98%，CI [3.81%, 4.32%]）<br>验证通过 · 下发执行
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ctrl" data-stage="causal">
+        <div class="ctrl-btns">
+          <button class="ctrl-btn primary" data-act="play">▶ 播放</button>
+          <button class="ctrl-btn" data-act="pause">⏸</button>
+          <button class="ctrl-btn" data-act="prev">◀◀</button>
+          <button class="ctrl-btn" data-act="next">▶▶</button>
+          <button class="ctrl-btn" data-act="replay">↻</button>
+        </div>
+        <div class="ctrl-narration">
+          <div class="ctrl-step"><span class="s-now">0</span><span class="s-tot"> / 5</span></div>
+          <div class="ctrl-text">
+            <div class="ctrl-title">Stage 4 · 待开始</div>
+            <div class="ctrl-narr">异常检测 → 因果路径 → 蒙特卡洛 → Bootstrap → 决策。</div>
+          </div>
+        </div>
+        <div class="ctrl-mode">阶段：<b>验证</b></div>
+      </div>
+      <div class="iobar-head collapsed" onclick="toggleIO(this)"><div class="t"><span class="chev">▼</span> Input · Method · Output · Next Use</div><div class="hint">点击展开 / 收起阶段说明</div></div>
+      <div class="iomn collapsed">
+        <div class="io-card"><div class="lbl">📥 INPUT</div><div class="body">Stage 3 candidate_plans = {DMA…DMG} + 三层（卷/节点/系统）历史数据。</div></div>
+        <div class="io-card method"><div class="lbl">⚙ METHOD</div>
+          <div class="body">异常检测 → 建立因果路径 → 对每个方案 Monte Carlo 模拟 → Bootstrap CI → 排序选优。</div>
+          <div class="formula">水平异常: |x − μ| &gt; 3σ
+变化异常: z(Δx)
+卷→节点: Deoxys 时间共现
+节点→系统: OLS 滞后回归</div>
+        </div>
+        <div class="io-card"><div class="lbl">📤 OUTPUT</div><div class="body">推荐方案 DMD，系统异常率 8.65%→4.07%（改善 52.98%），CI [3.81%, 4.32%]。</div>
+          <div class="kpis"><span class="kpi-pill green">8.65%→4.07%</span><span class="kpi-pill green">改善 52.98%</span></div>
+        </div>
+        <div class="io-card"><div class="lbl">⏭ NEXT USE</div><div class="body">通过 → 下发到云存储系统执行；不通过 → 返回 Stage 3 重新调度。</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 5 — LOGIC -->
+  <section class="panel" id="logic">
+    <div class="stage">
+      <div class="stage-title">
+        <h2>5 · 全链路逻辑图：DATA → 检测 → 预测 → 调度 → 验证</h2>
+        <div class="right"><span class="pill"><i class="dot"></i>统一卡片 · 数据流连线</span></div>
+      </div>
+      <div class="visual">
+        <div class="stage-badge">STAGE 5<small>逻辑架构</small></div>
+        <div class="lg-wrap">
+          <div class="lg-title">每张卡片固定四行：Input · Method · Output · Next Use；箭头颜色对应数据流类型</div>
+          <div class="lg-grid" id="lg-grid">
+            <div class="lg-card c0" id="lg-c0">
+              <div class="head"><h4>DATA</h4><span class="num">原始</span></div>
+              <div class="role">真实工业云存储监控</div>
+              <div class="lg-block in"><div class="lbl">Input</div><p>业务请求 · 节点 / 端口 / 卷 多层指标流入</p></div>
+              <div class="lg-block method"><div class="lbl">Method</div><p>统一长表 D = {(t,s,l,e,r,m,x)}</p></div>
+              <div class="lg-block out"><div class="lbl">Output</div><p>结构化时序长表（系统/节点/端口/卷四层）</p></div>
+              <div class="lg-block next"><div class="lbl">Next Use</div><p>送入 Stage 1 做不均衡判定</p></div>
+            </div>
+            <div class="lg-card c1" id="lg-c1">
+              <div class="head"><h4>Stage 1 · 检测</h4><span class="num">JUNHO</span></div>
+              <div class="role">多维负载检测 + 热点识别</div>
+              <div class="lg-block in"><div class="lbl">Input</div><p>统一长表 D（监控数据）</p></div>
+              <div class="lg-block method"><div class="lbl">Method</div><p>Gini / HHI / Theil / Top1 + Median-MAD SPC + 持续窗口 + Triplet</p></div>
+              <div class="lg-block out"><div class="lbl">Output</div><p>热点节点 859 / 端口 370 / 候选卷 Top-K</p></div>
+              <div class="lg-block next"><div class="lbl">Next Use</div><p>候选卷送 Stage 2 / 热点节点送 Stage 3 / 关键实体送 Stage 4</p></div>
+            </div>
+            <div class="lg-card c2" id="lg-c2">
+              <div class="head"><h4>Stage 2 · 预测</h4><span class="num">林熙昊</span></div>
+              <div class="role">卷级路由预测</div>
+              <div class="lg-block in"><div class="lbl">Input</div><p>Stage 1 候选卷 + 历史时间序列</p></div>
+              <div class="lg-block method"><div class="lbl">Method</div><p>统计特征 → 6 类分支（INA/PER/SSP/HVL/STA/CPX）→ SES / HW / Croston / RDR / TCN</p></div>
+              <div class="lg-block out"><div class="lbl">Output</div><p>forecast_view：未来曲线 + 风险窗口</p></div>
+              <div class="lg-block next"><div class="lbl">Next Use</div><p>Stage 3 调度的前瞻性约束</p></div>
+            </div>
+            <div class="lg-card c3" id="lg-c3">
+              <div class="head"><h4>Stage 3 · 调度</h4><span class="num">凌海雯</span></div>
+              <div class="role">多目标优化 · 跨可用区迁移</div>
+              <div class="lg-block in"><div class="lbl">Input</div><p>热点节点 + forecast_view</p></div>
+              <div class="lg-block method"><div class="lbl">Method</div><p>DP-NSGA-II（cost / imbalance / risk）+ 容量与业务优先级约束</p></div>
+              <div class="lg-block out"><div class="lbl">Output</div><p>candidate_plans = {DMA…DMG}</p></div>
+              <div class="lg-block next"><div class="lbl">Next Use</div><p>送 Stage 4 因果验证（不直接执行）</p></div>
+            </div>
+            <div class="lg-card c4" id="lg-c4">
+              <div class="head"><h4>Stage 4 · 验证</h4><span class="num">梅元昊</span></div>
+              <div class="role">因果驱动事前验证</div>
+              <div class="lg-block in"><div class="lbl">Input</div><p>candidate_plans + 三层异常检测结果</p></div>
+              <div class="lg-block method"><div class="lbl">Method</div><p>Volume→Node→System 因果路径 + Monte Carlo + Bootstrap CI</p></div>
+              <div class="lg-block out"><div class="lbl">Output</div><p>推荐 DMD · 8.65%→4.07% · 改善 52.98%</p></div>
+              <div class="lg-block next"><div class="lbl">Next Use</div><p>通过 → 下发；不通过 → 返回 Stage 3</p></div>
+            </div>
+            <div class="lg-conn" id="lg-conn">
+              <svg id="lg-conn-svg"></svg>
+            </div>
+          </div>
+          <div class="lg-legend">
+            <span><i style="background:#4f8cff"></i>蓝色：统一长表数据</span>
+            <span><i style="background:#ff5670"></i>红色：热点 / 候选卷</span>
+            <span><i style="background:#ffe066"></i>黄色：forecast_view</span>
+            <span><i style="background:#8b6cff"></i>紫色：candidate_plans</span>
+            <span><i style="background:#28d17c"></i>绿色：验证 / 执行决策</span>
+          </div>
+        </div>
+      </div>
+      <div class="ctrl" data-stage="logic">
+        <div class="ctrl-btns">
+          <button class="ctrl-btn primary" data-act="play">▶ 播放</button>
+          <button class="ctrl-btn" data-act="pause">⏸</button>
+          <button class="ctrl-btn" data-act="prev">◀◀</button>
+          <button class="ctrl-btn" data-act="next">▶▶</button>
+          <button class="ctrl-btn" data-act="replay">↻</button>
+        </div>
+        <div class="ctrl-narration">
+          <div class="ctrl-step"><span class="s-now">0</span><span class="s-tot"> / 5</span></div>
+          <div class="ctrl-text">
+            <div class="ctrl-title">Stage 5 · 待开始</div>
+            <div class="ctrl-narr">依次点亮 DATA → 检测 → 预测 → 调度 → 验证。</div>
+          </div>
+        </div>
+        <div class="ctrl-mode">阶段：<b>架构</b></div>
+      </div>
+      <div class="iobar-head collapsed" onclick="toggleIO(this)"><div class="t"><span class="chev">▼</span> Input · Method · Output · Next Use</div><div class="hint">点击展开 / 收起阶段说明</div></div>
+      <div class="iomn collapsed">
+        <div class="io-card"><div class="lbl">📥 INPUT</div><div class="body">五个统一卡片，每张固定四行。</div></div>
+        <div class="io-card method"><div class="lbl">⚙ METHOD</div><div class="body">用动态点线箭头表达数据流方向；颜色区分类型。</div></div>
+        <div class="io-card"><div class="lbl">📤 OUTPUT</div><div class="body">适合海报 / PPT 截图的干净逻辑图。</div></div>
+        <div class="io-card"><div class="lbl">⏭ NEXT USE</div><div class="body">向评委说明：JUNHO 的 Stage 1 是整个项目的前置基础。</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       STAGE 6 — 3D SYSTEM DEMO
+       ========================================================= -->
+  <section class="panel" id="threed">
+    <div class="stage">
+      <div class="stage-title">
+        <h2>6 · 3D系统演示：系统 / 节点 / 端口 / 存储卷 全链路三维可视化</h2>
+        <div class="right">
+          <span class="pill"><i class="dot"></i>检测 → 预测 → 调度 → 验证 因果链路</span>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="stage-badge">STAGE 6<small>3D 系统演示</small></div>
+        <div class="td-wrap">
+          <!-- LEFT -->
+          <div class="td-left">
+            <div class="td-person" title="客户 / 用户">
+              <div class="p-head"></div>
+              <div class="p-body"></div>
+              <div class="p-bubble">请求<br>Request</div>
+            </div>
+            <div class="td-person-lbl">客户 Client</div>
+            <div class="td-arrowd">↓</div>
+            <div class="td-lb">Load Balancer<br>负载分发入口</div>
+            <div class="td-arrowd">↓</div>
+            <div class="reqflow" id="td-reqflow">
+              <span class="lp" style="animation-delay:0s"></span>
+              <span class="lp" style="animation-delay:.4s"></span>
+              <span class="lp" style="animation-delay:.8s"></span>
+              <span class="lp" style="animation-delay:1.2s"></span>
+            </div>
+            <div class="td-ingress-note">客户请求 → LB → 资源池<br>蓝色光点 = 业务请求</div>
+          </div>
+
+          <!-- CENTER 3D SCENE -->
+          <div class="td-scene-wrap" id="td-scene-wrap">
+            <div class="td-stagebadge" id="td-stagebadge">点击 ▶ 播放 / 拖拽旋转</div>
+            <div class="td-draghint">🖱 拖拽旋转 · 滚轮缩放</div>
+            <div class="td-causal" id="td-causal">
+              <span class="seg">Volume 异常</span><span class="ar">→</span>
+              <span class="seg">Node 异常</span><span class="ar">→</span>
+              <span class="seg">System 异常</span>
+              <span class="mc" id="td-causal-mc">Monte Carlo 模拟中…</span>
+            </div>
+            <!-- floating system dashboard (screen-space) -->
+            <div class="td-dashboard" id="td-dashboard">
+              <div class="dh">SYSTEM DASHBOARD</div>
+              <div class="td-sys-grid">
+                <div class="k" id="td-sys-imb"><span>imbalance</span><b>0.18</b></div>
+                <div class="k" id="td-sys-risk"><span>risk</span><b>2.1%</b></div>
+                <div class="k" id="td-sys-ucl"><span>UCL</span><b>0.32</b></div>
+                <div class="k" id="td-sys-top1"><span>Top1</span><b>0.32</b></div>
+              </div>
+              <div class="td-sys-status" id="td-sys-status" data-s="Normal" onclick="tdInfo('sys','')">Normal</div>
+            </div>
+
+            <div class="td-scene" id="td-scene">
+              <!-- transparent cloud storage pool container -->
+              <div class="cube td-pool" id="td-pool">
+                <div class="f fr"></div><div class="f bk"></div><div class="f lf"></div>
+                <div class="f rt"></div><div class="f tp"><span class="pool-tag">云计算存储资源池 · Cloud Storage Pool</span></div><div class="f bt"></div>
+              </div>
+
+              <!-- Load Balancer cuboid -->
+              <div class="cube td-lb3" id="td-lb3">
+                <div class="f fr">LB</div><div class="f bk"></div><div class="f lf"></div>
+                <div class="f rt"></div><div class="f tp"></div><div class="f bt"></div>
+              </div>
+
+              <!-- Node server cuboids (each with front-face port slots) -->
+              <div class="td-nodes">
+                <div class="cube td-node" id="td-node-A" data-state="cool" onclick="tdInfo('node','A')">
+                  <div class="f fr">
+                    <div class="nhead">Node A</div>
+                    <div class="pslots">
+                      <div class="td-port" id="td-p-1" data-state="cool" onclick="event.stopPropagation();tdInfo('port','1')">P1</div>
+                      <div class="td-port" id="td-p-2" data-state="cool" onclick="event.stopPropagation();tdInfo('port','2')">P2</div>
+                      <div class="td-port" id="td-p-3" data-state="cool" onclick="event.stopPropagation();tdInfo('port','3')">P3</div>
+                      <div class="td-port" id="td-p-4" data-state="cool" onclick="event.stopPropagation();tdInfo('port','4')">P4</div>
+                    </div>
+                    <div class="npct" id="td-node-A-pct">42%</div>
+                  </div>
+                  <div class="f bk"></div><div class="f lf"></div><div class="f rt"></div><div class="f tp"></div><div class="f bt"></div>
+                  <!-- hidden bars kept for compat with tdNode() width updates -->
+                  <span id="td-node-C-cpu" style="display:none"></span>
+                </div>
+                <div class="cube td-node" id="td-node-B" data-state="cool" onclick="tdInfo('node','B')">
+                  <div class="f fr">
+                    <div class="nhead">Node B</div>
+                    <div class="pslots">
+                      <div class="td-port" id="td-p-2b" data-state="cool">P1</div>
+                      <div class="td-port" id="td-p-3b" data-state="cool">P2</div>
+                      <div class="td-port" id="td-p-4b" data-state="cool">P3</div>
+                      <div class="td-port" id="td-p-5" data-state="cool" onclick="event.stopPropagation();tdInfo('port','5')">P5</div>
+                    </div>
+                    <div class="npct" id="td-node-B-pct">51%</div>
+                  </div>
+                  <div class="f bk"></div><div class="f lf"></div><div class="f rt"></div><div class="f tp"></div><div class="f bt"></div>
+                </div>
+                <div class="cube td-node" id="td-node-C" data-state="cool" onclick="tdInfo('node','C')">
+                  <div class="f fr">
+                    <div class="nhead">Node C</div>
+                    <div class="pslots">
+                      <div class="td-port" id="td-p-6" data-state="cool" onclick="event.stopPropagation();tdInfo('port','6')">P6</div>
+                      <div class="td-port" id="td-p-7" data-state="cool" onclick="event.stopPropagation();tdInfo('port','7')">P7</div>
+                      <div class="td-port" id="td-p-8" data-state="cool" onclick="event.stopPropagation();tdInfo('port','8')">P8</div>
+                      <div class="td-port" id="td-p-9c" data-state="cool">P9</div>
+                    </div>
+                    <div class="npct" id="td-node-C-pct">55%</div>
+                  </div>
+                  <div class="f bk"></div><div class="f lf"></div><div class="f rt"></div><div class="f tp"></div><div class="f bt"></div>
+                  <span id="td-node-C-io" style="display:none"></span><span id="td-node-C-lat" style="display:none"></span>
+                </div>
+              </div>
+
+              <!-- volume shelf + storage cubes -->
+              <div class="td-shelf">
+                <div class="cube td-shelf-base">
+                  <div class="f fr"></div><div class="f bk"></div><div class="f lf"></div>
+                  <div class="f rt"></div><div class="f tp"></div><div class="f bt"></div>
+                </div>
+                <div class="td-vols" id="td-vols"></div>
+              </div>
+            </div>
+            <!-- data-flow overlay (SVG paths + particles, screen space) -->
+            <svg class="td-flow-svg" id="td-flow-svg" viewBox="0 0 600 600" preserveAspectRatio="none"></svg>
+            <!-- 4 separate part-cubes (architecture key) on the RIGHT -->
+            <div class="td-parts" id="td-parts">
+              <div class="td-parts-title">架构分层 · 单独正方体</div>
+              <div class="part-cube sys" data-part="sys" onmouseenter="tdHighlightPart('sys',1)" onmouseleave="tdHighlightPart('sys',0)" onclick="tdSpinPart(this)">
+                <div class="pc"><div class="f fr"></div><div class="f bk"></div><div class="f lf"></div><div class="f rt"></div><div class="f tp"></div><div class="f bt"></div></div>
+                <div class="part-lbl">① 系统层<small>System</small></div>
+              </div>
+              <div class="part-cube node" data-part="node" onmouseenter="tdHighlightPart('node',1)" onmouseleave="tdHighlightPart('node',0)" onclick="tdSpinPart(this)">
+                <div class="pc"><div class="f fr"></div><div class="f bk"></div><div class="f lf"></div><div class="f rt"></div><div class="f tp"></div><div class="f bt"></div></div>
+                <div class="part-lbl">② 节点层<small>Node</small></div>
+              </div>
+              <div class="part-cube port" data-part="port" onmouseenter="tdHighlightPart('port',1)" onmouseleave="tdHighlightPart('port',0)" onclick="tdSpinPart(this)">
+                <div class="pc"><div class="f fr"></div><div class="f bk"></div><div class="f lf"></div><div class="f rt"></div><div class="f tp"></div><div class="f bt"></div></div>
+                <div class="part-lbl">③ 端口层<small>Port</small></div>
+              </div>
+              <div class="part-cube vol" data-part="vol" onmouseenter="tdHighlightPart('vol',1)" onmouseleave="tdHighlightPart('vol',0)" onclick="tdSpinPart(this)">
+                <div class="pc"><div class="f fr"></div><div class="f bk"></div><div class="f lf"></div><div class="f rt"></div><div class="f tp"></div><div class="f bt"></div></div>
+                <div class="part-lbl">④ 存储卷<small>Volume</small></div>
+              </div>
+              <div class="td-parts-hint">悬停查看对应部分<br>（主模型变红）</div>
+            </div>
+            <div class="td-pop" id="td-pop"><span class="close" onclick="tdClosePop()">✕</span><div id="td-pop-body"></div></div>
+          </div>
+
+          <!-- RIGHT PANEL -->
+          <div class="td-right">
+            <!-- BIG phase badge -->
+            <div class="td-phasebadge" id="td-phasebadge" data-ph="idle">
+              <div class="ico" id="td-phase-ico">🛰</div>
+              <div class="tx">
+                <div class="lab">当前阶段 CURRENT PHASE</div>
+                <div class="nm" id="td-phase-nm">待开始</div>
+              </div>
+            </div>
+            <div class="td-phase" id="td-phase">
+              <span class="p" data-ph="detect">①检测</span>
+              <span class="p" data-ph="forecast">②预测</span>
+              <span class="p" data-ph="schedule">③调度</span>
+              <span class="p" data-ph="causal">④验证</span>
+              <span class="p" data-ph="update">⑤系统更新</span>
+            </div>
+
+            <!-- IPO explain -->
+            <div class="td-explain">
+              <div class="step-no" id="td-step-no">STEP 0 / 9</div>
+              <div class="step-title" id="td-step-title">全链路三维演示</div>
+              <div class="td-ipo">
+                <div class="row in"><div class="l">当前输入 INPUT</div><div class="v" id="td-ipo-in">业务请求 + 四层实时状态</div></div>
+                <div class="row method"><div class="l">当前方法 METHOD</div><div class="v plain" id="td-ipo-method-plain">点击 ▶ 播放开始演示</div><div class="v formula" id="td-ipo-method">—</div></div>
+                <div class="row out"><div class="l">当前输出 OUTPUT</div><div class="v" id="td-ipo-out">—</div></div>
+                <div class="row next"><div class="l">下一步使用 NEXT</div><div class="v" id="td-ipo-next">—</div></div>
+              </div>
+            </div>
+
+            <!-- 2D mini panel -->
+            <div class="td-mini">
+              <h6 id="td-mini-title">2D 计算依据</h6>
+              <div class="chart" id="td-mini-chart"><div class="empty">播放后在此显示当前步骤的计算/判定依据</div></div>
+            </div>
+
+            <!-- view + mode controls -->
+            <div class="td-viewctrl">
+              <button class="td-vbtn" onclick="tdView('left')">⟲ 左转</button>
+              <button class="td-vbtn" onclick="tdView('right')">⟳ 右转</button>
+              <button class="td-vbtn" onclick="tdView('top')">俯视</button>
+              <button class="td-vbtn" onclick="tdView('reset')">重置视角</button>
+              <button class="td-vbtn" id="td-rotate-btn" onclick="tdToggleRotate()">自动旋转 OFF</button>
+            </div>
+            <div class="td-viewctrl">
+              <button class="td-vbtn" id="td-mode-jiang" onclick="tdMode('jiang')">讲解模式</button>
+              <button class="td-vbtn on" id="td-mode-tech" onclick="tdMode('tech')">技术模式</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTROL BAR -->
+      <div class="ctrl" data-stage="threed">
+        <div class="ctrl-btns">
+          <button class="ctrl-btn primary" data-act="play">▶ 播放</button>
+          <button class="ctrl-btn" data-act="pause">⏸</button>
+          <button class="ctrl-btn" data-act="prev">◀◀</button>
+          <button class="ctrl-btn" data-act="next">▶▶</button>
+          <button class="ctrl-btn" data-act="replay">↻</button>
+        </div>
+        <div class="ctrl-narration">
+          <div class="ctrl-step"><span class="s-now">0</span><span class="s-tot"> / 9</span></div>
+          <div class="ctrl-text">
+            <div class="ctrl-title">Stage 6 · 待开始</div>
+            <div class="ctrl-narr">9 步全链路三维演示：请求进入 → 热点 → 检测 → 预测 → 调度 → 验证 → 恢复。</div>
+          </div>
+        </div>
+        <div class="ctrl-mode">阶段：<b>3D</b></div>
+      </div>
+
+      <div class="iobar-head collapsed" onclick="toggleIO(this)"><div class="t"><span class="chev">▼</span> Input · Method · Output · Next Use</div><div class="hint">点击展开 / 收起阶段说明</div></div>
+      <div class="iomn collapsed">
+        <div class="io-card"><div class="lbl">📥 INPUT</div><div class="body">业务请求 + 系统/节点/端口/卷四层实时状态。</div></div>
+        <div class="io-card method"><div class="lbl">⚙ METHOD</div><div class="body">纯 CSS 3D（perspective / preserve-3d / rotateX-Y / translateZ）分层呈现，requestAnimationFrame 驱动可暂停动画。</div></div>
+        <div class="io-card"><div class="lbl">📤 OUTPUT</div><div class="body">检测→预测→调度→验证→恢复的端到端三维叙事。</div>
+          <div class="kpis"><span class="kpi-pill red">Node 859</span><span class="kpi-pill red">Port 370</span><span class="kpi-pill green">8.65→4.07%</span></div>
+        </div>
+        <div class="io-card"><div class="lbl">⏭ NEXT USE</div><div class="body">展会现场吸引观众，不读论文也能理解全链路；支持讲解 / 技术 / 截图模式。</div></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- spec modal -->
+<div class="modal-mask" id="specMask">
+  <div class="modal">
+    <div class="modal-head"><h3>可复用逻辑规格（项目展览版）</h3>
+      <button class="btn secondary" onclick="closeSpec()">关闭</button>
+    </div>
+    <div class="modal-body" id="specBody"></div>
+    <div class="modal-foot">
+      <button class="btn secondary" onclick="copySpec()">复制全文</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   ANIMATION CONTROLLER  (pausable timeline, per-stage)
+   =========================================================
+   Each stage exports:
+     - steps: [{title, narration, apply(), revert()?}]
+     - reset(): bring stage back to t0 visual state
+   The controller maintains:
+     - currentStage, stepIndex, isPlaying
+     - a single setTimeout chain that respects pause/resume
+   ========================================================= */
+
+const STAGES = ["overview","detect","forecast","schedule","causal","logic","threed"];
+const stepGap = 1900;       // ms between auto-play steps
+let activeStage = "overview";
+let isPlayingAll = false;
+
+/* per-stage state */
+const ctrl = {
+  overview:{i:0,playing:false,timer:null},
+  detect:  {i:0,playing:false,timer:null},
+  forecast:{i:0,playing:false,timer:null},
+  schedule:{i:0,playing:false,timer:null},
+  causal:  {i:0,playing:false,timer:null},
+  logic:   {i:0,playing:false,timer:null},
+  threed:  {i:0,playing:false,timer:null}
+};
+
+/* 3D scene central config (key numbers — easy to edit) */
+const TD_CFG = {
+  nodeHotspotEvents:859, portHotspotEvents:370,
+  AUCBefore:0.744, AUCAfter:0.800,
+  TripletAccBefore:0.592, TripletAccAfter:0.777,
+  DistanceGapBefore:0.080, DistanceGapAfter:1.787,
+  ImbalanceBefore:0.41, ImbalanceAfter:0.30,
+  RiskBefore:8.65, RiskAfter:4.07,
+  candVols:["V3","V5","V14","V9"],
+  migrate:["V5","V14","V9"]
+};
+
+/* =========================================================
+   STAGE 0 OVERVIEW STEPS
+   ========================================================= */
+const stageDefs = {
+  overview:{
+    steps:[
+      {title:"系统边界 · 业务请求接入", narration:"业务请求经 Load Balancer 进入云存储资源池，分布到系统/节点/端口/卷四层。",
+        apply:()=>{ litFlow(0); litRow("ov-r-sys"); }},
+      {title:"节点层负载浮现", narration:"Node A/B 仍然均衡，但 Node C 已显著上升至 91%，触发热点候选。",
+        apply:()=>{ litFlow(0); litRow("ov-r-node"); }},
+      {title:"端口层细粒度热点", narration:"端口 P6 出现局部拥塞，是热点的细粒度证据，将进入 Stage 1 检测。",
+        apply:()=>{ litFlow(1); litRow("ov-r-port"); }},
+      {title:"卷层迁移对象", narration:"V3 / V5 / V14 三个卷被标记为热点候选，是 Stage 3 多目标调度的迁移对象。",
+        apply:()=>{ litFlow(1); litRow("ov-r-vol"); }},
+      {title:"Stage 2 负载预测", narration:"候选卷进入 Stage 2 卷级路由预测，输出 forecast_view（未来曲线+风险窗口）。",
+        apply:()=>{ litFlow(2); }},
+      {title:"Stage 3 多目标调度", narration:"DP-NSGA-II 综合 cost/imbalance/risk 给出 candidate_plans = {DMA…DMG}。",
+        apply:()=>{ litFlow(3); }},
+      {title:"Stage 4 因果验证", narration:"Monte Carlo 模拟系统异常率，DMD 通过验证（8.65%→4.07%）下发执行。",
+        apply:()=>{ litFlow(4); }}
+    ],
+    reset:()=>{
+      ["ov-s0","ov-s1","ov-s2","ov-s3","ov-s4"].forEach(id=>document.getElementById(id)?.classList.remove("lit"));
+      ["ov-r-sys","ov-r-node","ov-r-port","ov-r-vol"].forEach(id=>document.getElementById(id)?.classList.remove("lit"));
+    }
+  },
+
+  /* =========================================================
+     STAGE 1 DETECT STEPS  (timeline + topology + result)
+     ========================================================= */
+  detect:{
+    steps:[
+      {title:"统一长表构建", narration:"系统/节点/端口监控数据汇总为长表 D = {(t,s,l,e,r,m,x)}，相同上下文构造实体负载向量 v(e,t)。",
+        apply:()=>{ setTimelineFill(0.05); flashSysKpi("gini"); flashSysKpi("hhi"); }},
+      {title:"多维不均衡指标计算", narration:"在系统层计算 Gini / HHI / Theil / Top1 Share，反映多维度不均衡程度。",
+        apply:()=>{
+          setTimelineFill(0.25);
+          updateKpis({gini:"0.27",hhi:"0.31",theil:"0.18",top1:"0.42"});
+          ["gini","hhi","theil","top1"].forEach(k=>flashSysKpi(k));
+        }},
+      {title:"Median-MAD SPC 判定", narration:"用稳健 SPC 构造 UCL = Median + k·1.4826·MAD；当前指标超过 UCL → 不均衡候选。",
+        apply:()=>{
+          setTimelineFill(0.45);
+          updateKpis({gini:"0.36",hhi:"0.41",theil:"0.27",top1:"0.55",ucl:"0.32"});
+          markAlert("gini",true); markAlert("hhi",true); markAlert("top1",true);
+        }},
+      {title:"持续窗口 & 负载门控", narration:"短时 spike 与低负载比例假象被过滤；持续 W 个窗口且通过 load_gate 才视为真热点。",
+        apply:()=>{
+          setTimelineFill(0.65);
+          setNodeState("A","cool",42); setNodeState("B","warm",68); setNodeState("C","warm",78);
+          setPortStates({1:"cool",2:"cool",3:"cool",4:"cool",5:"warm",6:"warm",7:"cool",8:"cool"});
+          drawSpcComparison();
+        }},
+      {title:"热点事件输出", narration:"Node C 与端口 P6 通过持续窗口 → 触发热点；候选卷 Top-K = {V3, V5, V14, V9}。",
+        apply:()=>{
+          setTimelineFill(0.85);
+          setNodeState("A","cool",42); setNodeState("B","warm",68); setNodeState("C","hot",91);
+          setPortStates({1:"cool",2:"cool",3:"cool",4:"cool",5:"warm",6:"hot",7:"cool",8:"cool"});
+          updateKpis({gini:"0.41",hhi:"0.46",theil:"0.31",top1:"0.58",ucl:"0.32"});
+          showResult("L2 · 节点+端口共发","Node C × Port P6（持续 W=3 窗口）");
+          ["V3","V5","V14","V9"].forEach(v=>document.getElementById("det-vol-"+v)?.classList.add("hot"));
+        }},
+      {title:"Metric Learning 扩展", narration:"在 [Gini,HHI,Theil,Top1,load_ratio,active_ratio,severity] 上学习 Triplet 度量；规则边界外补充 +4243 个 learned-only 候选。",
+        apply:()=>{
+          setTimelineFill(1.0);
+          document.getElementById("det-ml")?.classList.add("active");
+        }}
+    ],
+    reset:()=>{
+      setTimelineFill(0);
+      updateKpis({gini:"0.18",hhi:"0.21",theil:"0.09",top1:"0.32",ucl:"0.32"});
+      ["gini","hhi","theil","top1"].forEach(k=>markAlert(k,false));
+      setNodeState("A","cool",42); setNodeState("B","cool",51); setNodeState("C","cool",55);
+      setPortStates({1:"cool",2:"cool",3:"cool",4:"cool",5:"cool",6:"cool",7:"cool",8:"cool"});
+      ["V3","V5","V14","V9"].forEach(v=>document.getElementById("det-vol-"+v)?.classList.remove("hot"));
+      const r=document.getElementById("det-result"); if(r){ r.classList.remove("ready"); }
+      const stamp=document.getElementById("det-stamp"); if(stamp)stamp.textContent="待检测";
+      const lvl=document.getElementById("det-finding-level"); if(lvl)lvl.textContent="—";
+      const ent=document.getElementById("det-finding-entity"); if(ent)ent.textContent="—";
+      const ca=document.getElementById("det-finding-cause"); if(ca)ca.textContent="尚未触发：等待持续窗口 + 负载门控";
+      ["det-spc-a","det-spc-b"].forEach(id=>{const s=document.getElementById(id); if(s)s.innerHTML="";});
+    }
+  },
+
+  /* =========================================================
+     STAGE 2 FORECAST STEPS  (chart + routing)
+     ========================================================= */
+  forecast:{
+    steps:[
+      {title:"接收候选卷", narration:"V3 / V5 / V14 / V9 来自 Stage 1 热点候选 Top-K，进入预测器。",
+        apply:()=>{ pickFcVol("V3"); drawFcChart("V3"); fcOutLit("V3"); }},
+      {title:"统计特征提取", narration:"对每个候选卷计算 zero_ratio / CV / slope / volatility / spike / periodicity。",
+        apply:()=>{ pickFcVol("V5"); setFcFeatures({zr:"0.02",cv:"0.55",slope:"0.041",vol:"0.61",spike:"3.4",per:"24h"}); drawFcChart("V5"); fcOutLit("V5"); }},
+      {title:"分支路由", narration:"按统计特征自动路由：周期 PER → Holt-Winters；稀疏 SSP → Croston；高波动 HVL → TCN。",
+        apply:()=>{ pickFcVol("V14"); setFcRoute("HVL"); drawFcChart("V14"); fcOutLit("V14"); }},
+      {title:"未来曲线生成", narration:"各分支模型分别预测未来轨迹，并标注高于阈值的风险窗口。",
+        apply:()=>{ pickFcVol("V14"); setFcRoute("HVL"); drawFcChart("V14",true); }},
+      {title:"输出 forecast_view", narration:"将候选卷的未来曲线 + 风险窗口打包为 forecast_view，送入 Stage 3 作为前瞻性约束。",
+        apply:()=>{ ["V3","V5","V14","V9"].forEach(fcOutLit); drawFcChart("V14",true); }}
+    ],
+    reset:()=>{
+      document.querySelectorAll(".fc-vol").forEach(v=>v.classList.remove("selected"));
+      document.querySelectorAll(".fc-route").forEach(r=>r.classList.remove("active"));
+      document.querySelectorAll(".fc-out-item").forEach(i=>i.classList.remove("lit"));
+      document.getElementById("fc-svg").innerHTML="";
+    }
+  },
+
+  /* =========================================================
+     STAGE 3 SCHEDULE STEPS  (migration animation)
+     ========================================================= */
+  schedule:{
+    steps:[
+      {title:"迁移前 · 源/目标负载快照", narration:"AZ-East-1a 三个 host 进入红色高负载；AZ-East-1b 三个 host 处于绿色低负载。",
+        apply:()=>{ setHostLoads("hot"); drawPareto(false); resetVms(); }},
+      {title:"DP-NSGA-II 搜索 Pareto Front", narration:"在 (cost, imbalance, risk) 三目标空间生成 Pareto Front，平均 2.8 epoch 收敛。",
+        apply:()=>{ document.getElementById("sc-bridge")?.classList.add("searching"); drawPareto(true); }},
+      {title:"选择推荐方案 DMD", narration:"在 Pareto Front 上挑出综合最优方案 DMD：迁移 V5 / V14 / V9 三个卷。",
+        apply:()=>{ document.getElementById("sc-bridge")?.classList.remove("searching");
+          ["V5","V14","V9"].forEach(v=>document.getElementById("sc-vm-"+v)?.classList.add("pick")); }},
+      {title:"迁移中 · V5/V14/V9 飞行", narration:"V5 → host-j13；V14 → host-j97；V9 → host-j81，伴随源/目标负载渐变。",
+        apply:()=>{ animateMigration(); }},
+      {title:"迁移后 · 送往因果验证", narration:"imbalance 0.41 → 0.30，迁移成本 350；candidate_plans 送 Stage 4 验证。",
+        apply:()=>{ setHostLoads("cooled"); ["V5","V14","V9"].forEach(v=>{
+            const e=document.getElementById("sc-vm-"+v); if(e){ e.classList.remove("pick"); e.classList.add("migrated"); }
+          }); }}
+    ],
+    reset:()=>{
+      setHostLoads("hot");
+      resetVms();
+      drawPareto(false);
+      document.querySelectorAll(".sc-flying").forEach(f=>f.remove());
+    }
+  },
+
+  /* =========================================================
+     STAGE 4 CAUSAL STEPS
+     ========================================================= */
+  causal:{
+    steps:[
+      {title:"异常检测 · 三层并行", narration:"卷层用差分 z-score 检测变化异常；节点层用 3σ 检测水平异常；系统层综合。",
+        apply:()=>{ litPipe(0); drawAnom("vol",false); drawAnom("node",false); drawAnom("sys",false); resetDag(); }},
+      {title:"建立因果路径 DAG", narration:"卷→节点用 Deoxys 时间共现；节点→系统用 OLS 滞后回归。",
+        apply:()=>{ litPipe(1); drawCausalDag("active"); }},
+      {title:"Monte Carlo 模拟", narration:"对 candidate_plans 各方案做 N 次模拟，得到系统异常率分布。",
+        apply:()=>{ litPipe(2); drawCausalDag("active"); drawHist(); animatePlans(); }},
+      {title:"Bootstrap CI 估计", narration:"用 Bootstrap 给推荐方案的异常率加置信区间：DMD = 4.07% [3.81%, 4.32%]。",
+        apply:()=>{ litPipe(3); animatePlans(); }},
+      {title:"方案排序 & 决策", narration:"DMD 综合最优 → 8.65%→4.07%（改善 52.98%）→ 验证通过 → 下发执行。",
+        apply:()=>{ litPipe(4); animatePlans(); drawCausalDag("done"); document.getElementById("cs-decision")?.classList.add("ready"); }}
+    ],
+    reset:()=>{
+      [0,1,2,3,4].forEach(i=>document.querySelectorAll("#cs-pipe .step")[i]?.classList.remove("lit"));
+      ["vol","node","sys"].forEach(t=>{ const s=document.getElementById("cs-anom-"+t); if(s)s.innerHTML=""; });
+      const svg=document.getElementById("cs-dag-svg");
+      if(svg){
+        // keep <defs>, clear paths
+        const defs=svg.querySelector("defs");
+        svg.innerHTML=""; if(defs)svg.appendChild(defs);
+      }
+      document.querySelectorAll(".cs-dnode").forEach(n=>n.classList.remove("hot","green"));
+      document.querySelectorAll(".cs-plan .fl").forEach(b=>b.style.width="0%");
+      document.getElementById("cs-decision")?.classList.remove("ready");
+      const h=document.getElementById("cs-hist-svg"); if(h)h.innerHTML="";
+    }
+  },
+
+  /* =========================================================
+     STAGE 5 LOGIC STEPS
+     ========================================================= */
+  logic:{
+    steps:[
+      {title:"DATA · 真实工业云存储监控", narration:"原始监控数据汇总为统一长表，是后续四个阶段的共同输入。",
+        apply:()=>{ litLogicCard("lg-c0"); drawLogicConn(0); }},
+      {title:"Stage 1 · 检测", narration:"JUNHO 的 Stage 1 是整个项目的前置基础——没有它，后续阶段无从触发。",
+        apply:()=>{ litLogicCard("lg-c1"); drawLogicConn(1); }},
+      {title:"Stage 2 · 预测", narration:"林熙昊接收候选卷，输出 forecast_view 提供前瞻信息。",
+        apply:()=>{ litLogicCard("lg-c2"); drawLogicConn(2); }},
+      {title:"Stage 3 · 调度", narration:"凌海雯 DP-NSGA-II 综合 forecast_view 与热点节点，生成 candidate_plans。",
+        apply:()=>{ litLogicCard("lg-c3"); drawLogicConn(3); }},
+      {title:"Stage 4 · 验证", narration:"梅元昊用 Monte Carlo + Bootstrap 给出 DMD 的 CI；通过 → 下发执行。",
+        apply:()=>{ litLogicCard("lg-c4"); drawLogicConn(4); }}
+    ],
+    reset:()=>{
+      ["lg-c0","lg-c1","lg-c2","lg-c3","lg-c4"].forEach(id=>document.getElementById(id)?.classList.remove("lit"));
+      const s=document.getElementById("lg-conn-svg"); if(s)s.innerHTML="";
+    }
+  },
+
+  /* =========================================================
+     STAGE 6 — 3D SYSTEM DEMO STEPS (9 steps)
+     ========================================================= */
+  threed:{
+    steps:[
+      {title:"业务请求进入", phase:"idle", phaseName:"业务请求进入", ico:"🛰",
+        ipo:{in:"业务请求 Client Requests",methodP:"经 Load Balancer 分发到资源池",method:"D = {(t,s,l,e,r,m,x)} 持续采集",out:"系统开始形成负载",next:"进入初始均衡观测"},
+        mini:null, flow:"ingress",
+        apply:()=>{ tdReqFlow(true); tdBadge("STEP 1 · 业务请求进入"); tdSysStatus("Normal"); tdFlow("ingress"); }},
+      {title:"系统初始均衡状态", phase:"idle", phaseName:"初始均衡", ico:"⚖",
+        ipo:{in:"系统/节点/端口/卷 四层指标",methodP:"请求均匀分散到 Node A/B/C",method:"imbalance 0.18 < UCL 0.32",out:"均衡分布，无热点",next:"持续监测是否出现集中"},
+        mini:null, flow:"balanced",
+        apply:()=>{ tdReqFlow(true); tdBadge("STEP 2 · 初始均衡 · 均衡分布");
+          tdNode("A","cool",42); tdNode("B","cool",51); tdNode("C","cool",55);
+          tdPorts({}); tdSys({imb:"0.18",risk:"2.1%",ucl:"0.32",top1:"0.32"}); tdSysStatus("Normal");
+          tdFlow("balanced"); }},
+      {title:"局部负载集中 · 热点形成", phase:"detect", phaseName:"检测热点", ico:"🔥",
+        ipo:{in:"实时节点 / 端口负载",methodP:"请求长期集中在 Node C / Port 6",method:"Gini / HHI / Top1 Share 持续上升",out:"Node C 55%→91%，Port 6 升温",next:"交给 SPC 判定是否为真热点"},
+        mini:"ucl", flow:"concentrate",
+        apply:()=>{ tdReqFlow(true); tdBadge("STEP 3 · 局部负载集中"); 
+          tdNode("A","cool",42); tdNode("B","warm",66); tdNode("C","hot",91);
+          tdPorts({6:"hot",5:"warm"}); tdSys({imb:"0.41",risk:"8.65%",ucl:"0.32",top1:"0.58"},["imb","top1","risk"]);
+          tdSysStatus("Hotspot"); tdFlow("concentrate"); tdMini("ucl",3); }},
+      {title:"Median-MAD SPC 检测", phase:"detect", phaseName:"检测热点", ico:"📈",
+        ipo:{in:"不均衡指标时间序列",methodP:"稳健控制界限 + 持续窗口 + 负载门控",method:"UCL=Median+k·1.4826·MAD\nHotspot={imb>UCL}∩{persistent}∩{load_gate}",out:"过滤短时 spike，保留持续热点",next:"输出结构化热点事件"},
+        mini:"ucl", flow:"port6",
+        apply:()=>{ tdReqFlow(true); tdBadge("STEP 4 · Median-MAD SPC 判定"); 
+          tdSysStatus("Hotspot"); tdFlow("port6"); tdMini("ucl",4); }},
+      {title:"输出热点事件与候选卷", phase:"detect", phaseName:"检测热点", ico:"📌",
+        ipo:{in:"通过 SPC 的热点候选",methodP:"汇聚为结构化 hotspot event",method:`Node 事件 ${TD_CFG.nodeHotspotEvents} · Port 事件 ${TD_CFG.portHotspotEvents}\nAUC ${TD_CFG.AUCBefore}→${TD_CFG.AUCAfter}`,out:"热点节点 / 端口 / 触发指标 / 候选卷",next:"候选卷 V3/V5/V14/V9 → 预测 & 调度"},
+        mini:"ucl", flow:"candidate",
+        apply:()=>{ tdReqFlow(false); tdBadge("STEP 5 · 热点事件 + 候选卷"); 
+          tdNode("C","hot",91); tdPorts({6:"hot",5:"warm"});
+          tdCandVols(true); tdFlow("candidate"); tdMini("ucl",5); }},
+      {title:"负载预测接入", phase:"forecast", phaseName:"预测未来负载", ico:"🔮",
+        ipo:{in:"候选卷 V3/V5/V14/V9 + 历史序列",methodP:"特征 → 6 类分支 → 对应预测器",method:"INA/PER/SSP/HVL/STA/CPX → SES/HW/Croston/TCN",out:"forecast_view 未来曲线 + 风险窗口",next:"作为 Stage 3 调度的前瞻约束"},
+        mini:"forecast", flow:"forecast",
+        apply:()=>{ tdBadge("STEP 6 · 负载预测"); tdCandVols(true);
+          tdSysStatus("Warning"); tdFlow("forecast"); tdMini("forecast",6); }},
+      {title:"多目标调度迁移", phase:"schedule", phaseName:"生成调度方案", ico:"🔀",
+        ipo:{in:"热点节点 + forecast_view",methodP:"DP-NSGA-II 多目标折中优化",method:"min F=(cost, imbalance, risk) s.t. 容量/优先级",out:"V5→j13 · V14→j97 · V9→j81；imbalance 0.41→0.30",next:"candidate_plans 送因果验证（不直接执行）"},
+        mini:"migrate", flow:"migrate",
+        apply:()=>{ tdBadge("STEP 7 · 多目标调度迁移"); 
+          tdMigrate(); tdFlow("migrate"); tdMini("migrate",7); }},
+      {title:"因果验证（事前）", phase:"causal", phaseName:"因果验证", ico:"🧪",
+        ipo:{in:"candidate_plans {DMA…DMG}",methodP:"调度方案不直接执行，先因果模拟验证",method:"Volume→Node→System 因果 + Monte Carlo + Bootstrap",out:`DMD ${TD_CFG.RiskBefore}%→${TD_CFG.RiskAfter}%，改善 52.98%`,next:"通过 → 下发；不通过 → 退回 Stage 3"},
+        mini:"montecarlo", flow:"causal",
+        apply:()=>{ tdBadge("STEP 8 · 因果验证 · 调度方案不直接执行"); 
+          tdCausal("show"); tdFlow("causal"); tdMini("montecarlo",8); }},
+      {title:"系统恢复均衡", phase:"update", phaseName:"系统更新", ico:"✅",
+        ipo:{in:"验证通过的 DMD 方案",methodP:"下发执行，迁移生效",method:`imbalance ${TD_CFG.ImbalanceBefore}→${TD_CFG.ImbalanceAfter} · risk ${TD_CFG.RiskBefore}%→${TD_CFG.RiskAfter}%`,out:"Node C 降温 · Port 6 恢复 · System Balanced",next:"持续监测，闭环回到检测阶段"},
+        mini:"migrate", flow:"recover",
+        apply:()=>{ tdBadge("STEP 9 · 系统恢复均衡 Verified / Balanced"); 
+          tdCausal("pass");
+          tdNode("A","cooled",58); tdNode("B","cooled",55); tdNode("C","cooled",61);
+          tdPorts({}); tdSys({imb:"0.30",risk:"4.07%",ucl:"0.32",top1:"0.41"}); tdSysStatus("Verified");
+          tdBalanced(true); tdFlow("recover"); tdMini("migrate",9); }}
+    ],
+    reset:()=>{
+      tdReqFlow(false); tdCausal("hide"); tdBalanced(false); tdFlow(null); tdMini(null);
+      tdNode("A","cool",42); tdNode("B","cool",51); tdNode("C","cool",55);
+      tdPorts({}); tdSys({imb:"0.18",risk:"2.1%",ucl:"0.32",top1:"0.32"});
+      tdSysStatus("Normal"); tdCandVols(false); tdPhase("idle");
+      tdPhaseBadge("idle","待开始","🛰");
+      tdIPO({in:"业务请求 + 四层实时状态",methodP:"点击 ▶ 播放开始演示",method:"—",out:"—",next:"—"});
+      document.querySelectorAll(".td-flying").forEach(f=>f.remove());
+      document.querySelectorAll(".td-vol").forEach(v=>v.classList.remove("fly"));
+      tdBadge("点击 ▶ 播放 / 拖拽旋转");
+    }
+  }
+};
+
+/* =========================================================
+   STAGE NAVIGATION + CONTROL EVENTS
+   ========================================================= */
+function showStage(id){
+  // pause whatever is currently playing
+  pauseStage(activeStage);
+  activeStage=id;
+  document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active",p.id===id));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===id));
+  // reset stage to t0 visual
+  resetStage(id);
+  updateNarration(id);
+  // re-draw logic connectors when entering logic
+  if(id==="logic"){ requestAnimationFrame(()=>drawLogicConn(0)); }
+  if(id==="threed"){ tdInitVols(); tdInitDrag(); tdApplyView(); }
+}
+
+function pauseStage(id){
+  const s=ctrl[id]; if(!s) return;
+  if(s.timer){clearTimeout(s.timer); s.timer=null;}
+  s.playing=false;
+  document.querySelectorAll(`.tab[data-tab="${id}"]`).forEach(t=>t.classList.remove("playing"));
+}
+
+function resetStage(id){
+  pauseStage(id);
+  ctrl[id].i=0;
+  stageDefs[id]?.reset?.();
+  updateNarration(id);
+}
+function resetAll(){ resetStage(activeStage); }
+
+function playStage(id){
+  pauseStage(id);
+  const def=stageDefs[id]; if(!def) return;
+  ctrl[id].playing=true;
+  document.querySelector(`.tab[data-tab="${id}"]`)?.classList.add("playing");
+  // if we're at the end, reset first
+  if(ctrl[id].i>=def.steps.length){ resetStage(id); ctrl[id].playing=true; }
+  function tick(){
+    if(!ctrl[id].playing) return;
+    if(ctrl[id].i>=def.steps.length){ pauseStage(id); return; }
+    const step=def.steps[ctrl[id].i];
+    if(id==="threed") tdStepMeta(step);
+    try{ step.apply?.(); }catch(e){ console.error(e); }
+    updateNarration(id);
+    ctrl[id].i++;
+    ctrl[id].timer=setTimeout(tick,stepGap);
+  }
+  tick();
+}
+
+function nextStep(id){
+  pauseStage(id);
+  const def=stageDefs[id]; if(!def) return;
+  if(ctrl[id].i>=def.steps.length) return;
+  const step=def.steps[ctrl[id].i];
+  if(id==="threed") tdStepMeta(step);
+  try{ step.apply?.(); }catch(e){ console.error(e); }
+  ctrl[id].i++;
+  updateNarration(id);
+}
+
+function prevStep(id){
+  pauseStage(id);
+  const def=stageDefs[id]; if(!def) return;
+  // re-apply from t0 up to (i-2)
+  ctrl[id].i=Math.max(0,ctrl[id].i-2);
+  stageDefs[id]?.reset?.();
+  for(let k=0;k<=ctrl[id].i-1;k++){
+    if(id==="threed") tdStepMeta(def.steps[k]);
+    try{ def.steps[k]?.apply?.(); }catch(e){}
+  }
+  updateNarration(id);
+}
+
+function replayStage(id){ resetStage(id); playStage(id); }
+
+function updateNarration(id){
+  const def=stageDefs[id]; if(!def) return;
+  const ctrlEl=document.querySelector(`.ctrl[data-stage="${id}"]`); if(!ctrlEl) return;
+  const i=ctrl[id].i;
+  const total=def.steps.length;
+  const sNow=ctrlEl.querySelector(".s-now"); const sTot=ctrlEl.querySelector(".s-tot");
+  const sTitle=ctrlEl.querySelector(".ctrl-title"); const sNarr=ctrlEl.querySelector(".ctrl-narr");
+  if(sNow) sNow.textContent=Math.min(i,total);
+  if(sTot) sTot.textContent=" / "+total;
+  if(i===0){
+    if(sTitle) sTitle.textContent=`Stage · 待开始`;
+    if(sNarr)  sNarr.textContent="点击「▶ 播放」自动演示，或用「▶▶ / ◀◀」单步控制。";
+  }else{
+    const step=def.steps[Math.min(i,total)-1];
+    if(step){
+      if(sTitle) sTitle.textContent=`Step ${Math.min(i,total)} · ${step.title}`;
+      if(sNarr)  sNarr.textContent=step.narration || (step.ipo? (step.ipo.methodP||step.ipo.out) : "");
+    }
+  }
+  // Stage 6: also update the rich right-panel (badge + IPO + step number)
+  if(id==="threed") tdUpdatePanel(i,total);
+}
+
+/* update Stage 6 right panel from current step */
+function tdUpdatePanel(i,total){
+  const def=stageDefs.threed;
+  const noEl=document.getElementById("td-step-no");
+  const tiEl=document.getElementById("td-step-title");
+  if(i===0){
+    if(noEl) noEl.textContent="STEP 0 / "+total;
+    if(tiEl) tiEl.textContent="全链路三维演示";
+    return;
+  }
+  const step=def.steps[Math.min(i,total)-1]; if(!step) return;
+  if(noEl) noEl.textContent=`STEP ${Math.min(i,total)} / ${total} · ${step.phaseName||""}`;
+  if(tiEl) tiEl.textContent=step.title;
+}
+
+/* hook control buttons */
+document.addEventListener("click",e=>{
+  const btn=e.target.closest(".ctrl-btn"); if(!btn) return;
+  const stage=btn.closest(".ctrl")?.dataset.stage; if(!stage) return;
+  const act=btn.dataset.act;
+  if(act==="play")     playStage(stage);
+  else if(act==="pause")pauseStage(stage);
+  else if(act==="next") nextStep(stage);
+  else if(act==="prev") prevStep(stage);
+  else if(act==="replay") replayStage(stage);
+});
+
+/* =========================================================
+   PLAY ALL  (sequence stages)
+   ========================================================= */
+function playAll(){
+  if(isPlayingAll){
+    // stop
+    isPlayingAll=false;
+    pauseStage(activeStage);
+    document.getElementById("playAllBtn").textContent="▶ 播放全链路";
+    return;
+  }
+  isPlayingAll=true;
+  document.getElementById("playAllBtn").textContent="⏹ 停止全链路";
+  let si=0;
+  function nextStage(){
+    if(!isPlayingAll){ document.getElementById("playAllBtn").textContent="▶ 播放全链路"; return; }
+    if(si>=STAGES.length){
+      isPlayingAll=false;
+      document.getElementById("playAllBtn").textContent="▶ 播放全链路";
+      return;
+    }
+    const s=STAGES[si++];
+    showStage(s);
+    setTimeout(()=>{
+      if(!isPlayingAll) return;
+      pauseStage(s);
+      ctrl[s].i=0;
+      stageDefs[s]?.reset?.();
+      // play with auto-advance
+      const def=stageDefs[s];
+      ctrl[s].playing=true;
+      document.querySelector(`.tab[data-tab="${s}"]`)?.classList.add("playing");
+      function tick(){
+        if(!isPlayingAll || !ctrl[s].playing){ return; }
+        if(ctrl[s].i>=def.steps.length){
+          pauseStage(s);
+          setTimeout(nextStage,800);
+          return;
+        }
+        if(s==="threed") tdStepMeta(def.steps[ctrl[s].i]);
+        try{ def.steps[ctrl[s].i].apply?.(); }catch(e){}
+        updateNarration(s);
+        ctrl[s].i++;
+        ctrl[s].timer=setTimeout(tick,stepGap);
+      }
+      tick();
+    },350);
+  }
+  nextStage();
+}
+
+/* =========================================================
+   STAGE 0 helpers
+   ========================================================= */
+function litFlow(n){
+  ["ov-s0","ov-s1","ov-s2","ov-s3","ov-s4"].forEach((id,k)=>{
+    document.getElementById(id)?.classList.toggle("lit",k===n);
+  });
+}
+function litRow(id){
+  ["ov-r-sys","ov-r-node","ov-r-port","ov-r-vol"].forEach(x=>document.getElementById(x)?.classList.remove("lit"));
+  document.getElementById(id)?.classList.add("lit");
+}
+
+/* =========================================================
+   STAGE 1 helpers
+   ========================================================= */
+function setTimelineFill(p){
+  const f=document.getElementById("det-tl-fill"); if(f)f.style.width=(p*100).toFixed(0)+"%";
+  const m=document.getElementById("det-tl-now");  if(m)m.style.left=(p*100).toFixed(0)+"%";
+}
+function updateKpis(o){
+  Object.keys(o).forEach(k=>{ const e=document.getElementById("det-k-"+k); if(e)e.textContent=o[k]; });
+}
+function flashSysKpi(k){
+  const el=document.querySelector(`#det-sys-kpis [data-k="${k}"]`); if(!el) return;
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+}
+function markAlert(k,on){
+  const el=document.querySelector(`#det-sys-kpis [data-k="${k}"]`); if(!el) return;
+  el.classList.toggle("alert",on);
+  if(on){ el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+}
+function setNodeState(letter,state,load){
+  const n=document.getElementById("det-node-"+letter); if(!n) return;
+  n.setAttribute("data-state",state);
+  const ld=document.getElementById("det-load-"+letter); if(ld) ld.textContent=load+"%";
+}
+function setPortStates(map){
+  Object.keys(map).forEach(k=>{
+    const p=document.getElementById("det-p-"+k); if(p) p.setAttribute("data-state",map[k]);
+  });
+}
+function showResult(level,entity){
+  const r=document.getElementById("det-result"); if(r) r.classList.add("ready");
+  const stamp=document.getElementById("det-stamp"); if(stamp) stamp.textContent="HOTSPOT t₅";
+  const lvl=document.getElementById("det-finding-level"); if(lvl) lvl.textContent=level;
+  const ent=document.getElementById("det-finding-entity"); if(ent) ent.textContent=entity;
+  const ca=document.getElementById("det-finding-cause"); if(ca) ca.textContent="UCL 0.32 已突破，持续 3 窗口且通过 load_gate";
+}
+function drawSpcComparison(){
+  const W=120,H=64, ucl=26; // ucl y line (lower y = higher value)
+  // case A: short spike — one isolated peak crossing UCL but not persistent
+  const a=document.getElementById("det-spc-a");
+  // case B: persistent — sustained crossing
+  const b=document.getElementById("det-spc-b");
+  function frame(uclY,extra){
+    let s=`<line x1="2" y1="${uclY}" x2="${W-2}" y2="${uclY}" stroke="#ff5670" stroke-dasharray="3 3" stroke-width="1" opacity="0.7"/>`;
+    s+=`<text x="4" y="${uclY-3}" font-size="7" fill="#ff8095">UCL</text>`;
+    return s+extra;
+  }
+  // A points: baseline ~45 (below ucl line at 26 means value lower), single spike up at i=6
+  const aPts=[46,45,47,44,46,45,12,46,45,47,44,46];
+  // B points: rises and stays above ucl from i=5 onward
+  const bPts=[46,45,44,40,33,22,18,16,17,15,16,15];
+  function path(pts,color){
+    const step=(W-8)/(pts.length-1);
+    let d='';
+    pts.forEach((v,i)=>{ d+=(i?"L":"M")+(4+i*step).toFixed(1)+","+v+ ""; });
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2"/>`;
+  }
+  // markers above UCL
+  function markers(pts,color){
+    const step=(W-8)/(pts.length-1); let s='';
+    pts.forEach((v,i)=>{ if(v<26){ s+=`<circle cx="${(4+i*step).toFixed(1)}" cy="${v}" r="2.5" fill="${color}"/>`; }});
+    return s;
+  }
+  if(a){
+    let extra=path(aPts,"#9aa8c7")+markers(aPts,"#9aa8c7");
+    // grey shade on the single spike
+    extra+=`<rect x="48" y="2" width="14" height="${H-4}" fill="#9aa8c7" opacity="0.12"/>`;
+    a.innerHTML=frame(26,extra);
+  }
+  if(b){
+    let extra=path(bPts,"#ff5670")+markers(bPts,"#ff5670");
+    // red persistent window shade
+    extra+=`<rect x="50" y="2" width="${W-54}" height="${H-4}" fill="#ff5670" opacity="0.14"/>`;
+    extra+=`<text x="${W-4}" y="10" text-anchor="end" font-size="7" fill="#ffb6c1">persistent</text>`;
+    b.innerHTML=frame(26,extra);
+  }
+}
+
+/* =========================================================
+   STAGE 2 helpers — chart drawing
+   ========================================================= */
+function pickFcVol(v){
+  document.querySelectorAll(".fc-vol").forEach(e=>e.classList.toggle("selected",e.dataset.v===v));
+}
+function setFcRoute(r){
+  document.querySelectorAll(".fc-route").forEach(e=>e.classList.toggle("active",e.dataset.r===r));
+}
+function setFcFeatures(o){
+  if(o.zr)   document.getElementById("ff-zr").textContent=o.zr;
+  if(o.cv)   document.getElementById("ff-cv").textContent=o.cv;
+  if(o.slope)document.getElementById("ff-slope").textContent=o.slope;
+  if(o.vol)  document.getElementById("ff-vol").textContent=o.vol;
+  if(o.spike)document.getElementById("ff-spike").textContent=o.spike;
+  if(o.per)  document.getElementById("ff-per").textContent=o.per;
+}
+function fcOutLit(v){
+  const el=document.getElementById("fc-out-"+v); if(el) el.classList.add("lit");
+}
+function drawFcChart(volId,withRisk){
+  const svg=document.getElementById("fc-svg"); if(!svg) return;
+  const W=800,H=320,nowX=460;
+  // generate a sample series based on volId
+  function gen(seed,n,fn){
+    const arr=[];
+    for(let i=0;i<n;i++) arr.push(fn(i,seed));
+    return arr;
+  }
+  let hist, fut;
+  if(volId==="V3"){ // SSP - sparse spike
+    hist=gen(0.1,46,(i)=>0.18+0.04*Math.sin(i*0.4)+(i%11===0?0.55:0)+(Math.random()-0.5)*0.04);
+    fut=gen(0.1,30,(i)=>0.22+(i===8?0.62:0)+(i===19?0.48:0)+(Math.random()-0.5)*0.04);
+  }else if(volId==="V5"){ // PER - daily period
+    hist=gen(0.2,46,(i)=>0.4+0.18*Math.sin(i*0.35)+(Math.random()-0.5)*0.04);
+    fut=gen(0.2,30,(i)=>0.45+0.22*Math.sin((i+46)*0.35)+(Math.random()-0.5)*0.03);
+  }else if(volId==="V14"){ // HVL - high volatility upward trend
+    hist=gen(0.3,46,(i)=>0.32+0.005*i+0.16*Math.sin(i*0.6)+(Math.random()-0.5)*0.07);
+    fut=gen(0.3,30,(i)=>0.55+0.012*i+0.20*Math.sin((i+46)*0.6)+(Math.random()-0.5)*0.07);
+  }else{ // V9 STA - stable
+    hist=gen(0.4,46,(i)=>0.35+0.02*Math.sin(i*0.3)+(Math.random()-0.5)*0.02);
+    fut=gen(0.4,30,(i)=>0.36+0.03*Math.sin((i+46)*0.3)+(Math.random()-0.5)*0.02);
+  }
+  const all=[...hist,...fut];
+  const yMin=0, yMax=Math.max(1,Math.max(...all)*1.05);
+  const xH=(i)=> 40 + (i/(hist.length-1))*(nowX-40);
+  const xF=(i)=> nowX + (i/(fut.length-1))*(W-nowX-20);
+  const yMap=(v)=> H-30 - (v-yMin)/(yMax-yMin)*(H-60);
+
+  let s='';
+  // grid
+  for(let g=0;g<=4;g++){
+    const y=20+g*((H-50)/4);
+    s+=`<line x1="40" y1="${y}" x2="${W-20}" y2="${y}" stroke="#1c2949" stroke-width="1"/>`;
+  }
+  // risk window highlight
+  if(withRisk){
+    s+=`<rect x="${nowX+30}" y="20" width="120" height="${H-50}" fill="#ff5670" opacity="0.18"/>`;
+    s+=`<text x="${nowX+90}" y="38" text-anchor="middle" font-size="10" font-weight="800" fill="#ffb6c1">未来风险窗口</text>`;
+  }
+  // hist line
+  let hp='';
+  hist.forEach((v,i)=>{ hp += (i?"L":"M")+xH(i).toFixed(1)+","+yMap(v).toFixed(1); });
+  s+=`<path d="${hp}" fill="none" stroke="#4f8cff" stroke-width="2"/>`;
+  // now line
+  s+=`<line x1="${nowX}" y1="20" x2="${nowX}" y2="${H-30}" stroke="#23c7df" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+  s+=`<text x="${nowX+5}" y="34" font-size="10" fill="#23c7df" font-weight="800">NOW</text>`;
+  // future line (dashed orange)
+  let fp='';
+  fut.forEach((v,i)=>{ fp += (i?"L":"M")+xF(i).toFixed(1)+","+yMap(v).toFixed(1); });
+  s+=`<path d="${fp}" fill="none" stroke="#ffb84d" stroke-width="2.2" stroke-dasharray="6 4"/>`;
+  // axis labels
+  s+=`<text x="40" y="${H-12}" font-size="10" fill="#8fb3ff">t-46</text>`;
+  s+=`<text x="${nowX-12}" y="${H-12}" font-size="10" fill="#23c7df">now</text>`;
+  s+=`<text x="${W-50}" y="${H-12}" font-size="10" fill="#ffb84d">t+30</text>`;
+  s+=`<text x="14" y="28" font-size="10" fill="#8fb3ff">load</text>`;
+  svg.innerHTML=s;
+}
+
+/* =========================================================
+   STAGE 3 helpers — schedule animation
+   ========================================================= */
+function setHostLoads(state){
+  // state: "hot" (initial) or "cooled" (after migration)
+  const hot={
+    "j19":{cpu:88,mem:81,io:92},
+    "j119":{cpu:84,mem:79,io:88},
+    "j22":{cpu:86,mem:82,io:90},
+    "j13":{cpu:38,mem:31,io:42},
+    "j97":{cpu:35,mem:29,io:40},
+    "j81":{cpu:41,mem:34,io:45}
+  };
+  const cooled={
+    "j19":{cpu:62,mem:57,io:65},
+    "j119":{cpu:60,mem:55,io:64},
+    "j22":{cpu:61,mem:58,io:63},
+    "j13":{cpu:55,mem:48,io:60},
+    "j97":{cpu:53,mem:46,io:58},
+    "j81":{cpu:58,mem:50,io:62}
+  };
+  const data = state==="cooled"?cooled:hot;
+  Object.keys(data).forEach(h=>{
+    const d=data[h];
+    ["cpu","mem","io"].forEach(m=>{
+      const fl=document.getElementById(`sc-h-${h}-${m}`); if(fl) fl.style.width=d[m]+"%";
+      const vv=document.getElementById(`sc-h-${h}-${m}-v`); if(vv) vv.textContent=d[m]+"%";
+    });
+    const host=document.getElementById("sc-h-"+h); if(!host) return;
+    host.classList.remove("hot","target","cooled");
+    if(state==="cooled"){
+      host.classList.add(["j19","j119","j22"].includes(h)?"cooled":"target");
+    }else{
+      host.classList.add(["j19","j119","j22"].includes(h)?"hot":"target");
+    }
+  });
+}
+function resetVms(){
+  ["V5","V14","V9"].forEach(v=>{
+    const e=document.getElementById("sc-vm-"+v); if(e){ e.classList.remove("pick","migrated"); }
+  });
+  document.querySelectorAll(".sc-flying").forEach(f=>f.remove());
+}
+function animateMigration(){
+  // create flying volumes V5/V14/V9 from source hosts to target hosts
+  const row=document.getElementById("sc-az-row"); if(!row) return;
+  const rRow=row.getBoundingClientRect();
+  const pairs=[
+    {v:"V5",  src:"sc-vm-V5",  tgt:"sc-h-j13"},
+    {v:"V14", src:"sc-vm-V14", tgt:"sc-h-j97"},
+    {v:"V9",  src:"sc-vm-V9",  tgt:"sc-h-j81"}
+  ];
+  pairs.forEach((p,idx)=>{
+    setTimeout(()=>{
+      const srcEl=document.getElementById(p.src);
+      const tgtEl=document.getElementById(p.tgt);
+      if(!srcEl||!tgtEl) return;
+      const sR=srcEl.getBoundingClientRect();
+      const tR=tgtEl.getBoundingClientRect();
+      const fly=document.createElement("div");
+      fly.className="sc-flying depart";
+      fly.textContent=p.v;
+      row.appendChild(fly);
+      fly.style.left=(sR.left-rRow.left+sR.width/2-22)+"px";
+      fly.style.top=(sR.top-rRow.top+sR.height/2-12)+"px";
+      requestAnimationFrame(()=>{
+        fly.style.left=(tR.left-rRow.left+tR.width/2-22)+"px";
+        fly.style.top=(tR.top-rRow.top+tR.height/2-12)+"px";
+      });
+      setTimeout(()=>{ fly.classList.remove("depart"); fly.classList.add("arrive"); },1450);
+      setTimeout(()=>{ fly.remove(); },2400);
+    },idx*300);
+  });
+}
+function drawPareto(showFront){
+  const svg=document.getElementById("sc-pareto-svg"); if(!svg) return;
+  const W=320,H=140;
+  let s='';
+  // axes
+  s+=`<line x1="30" y1="${H-22}" x2="${W-12}" y2="${H-22}" stroke="#3d5b99" stroke-width="1"/>`;
+  s+=`<line x1="30" y1="10" x2="30" y2="${H-22}" stroke="#3d5b99" stroke-width="1"/>`;
+  s+=`<text x="30" y="${H-6}" font-size="9" fill="#8fb3ff">cost →</text>`;
+  s+=`<text x="6" y="14" font-size="9" fill="#8fb3ff">imbalance↓</text>`;
+  // sample points
+  const pts=[
+    {x:60,y:30,p:"DMA",bad:true},
+    {x:90,y:46,p:"DMB"},
+    {x:130,y:62,p:"DMC"},
+    {x:180,y:80,p:"DMD",rec:true},
+    {x:220,y:96,p:"DME"},
+    {x:260,y:106,p:"DMF"},
+    {x:280,y:112,p:"DMG"}
+  ];
+  if(showFront){
+    let path='';
+    pts.forEach((p,i)=>path+=(i?"L":"M")+p.x+","+p.y);
+    s+=`<path d="${path}" fill="none" stroke="#ffb84d" stroke-dasharray="4 3" stroke-width="1.5" opacity="0.7"/>`;
+  }
+  pts.forEach(p=>{
+    const c = p.rec? "#28d17c" : (p.bad? "#ff5670" : "#23c7df");
+    const r = p.rec? 6 : 4;
+    s+=`<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${c}" stroke="#fff" stroke-width="1"/>`;
+    s+=`<text x="${p.x+8}" y="${p.y+3}" font-size="9" fill="#cfe0ff" font-weight="700">${p.p}</text>`;
+  });
+  svg.innerHTML=s;
+}
+
+/* =========================================================
+   STAGE 4 helpers — anomaly + DAG + histogram + plans
+   ========================================================= */
+function drawAnom(type,active){
+  const svg=document.getElementById("cs-anom-"+type); if(!svg) return;
+  const W=220,H=48;
+  let s='';
+  let arr=[];
+  for(let i=0;i<60;i++){
+    let v;
+    if(type==="vol")    v=0.5+(i===22||i===41?0.4:0)+(Math.random()-0.5)*0.18;
+    else if(type==="node") v=0.4+(i>30?(i-30)*0.012:0)+(Math.random()-0.5)*0.08;
+    else                v=0.3+(i>40?(i-40)*0.018:0)+(Math.random()-0.5)*0.05;
+    arr.push(v);
+  }
+  const yMap=v=> H-4-Math.min(1,Math.max(0,v))*(H-8);
+  // line
+  let p='';
+  arr.forEach((v,i)=>{ p += (i?"L":"M")+(2+i*(W-4)/60).toFixed(1)+","+yMap(v).toFixed(1); });
+  const color = type==="vol"?"#8b6cff":type==="node"?"#ffb84d":"#23c7df";
+  s+=`<path d="${p}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+  // anomaly markers
+  arr.forEach((v,i)=>{ if(v>0.85){ s+=`<circle cx="${(2+i*(W-4)/60).toFixed(1)}" cy="${yMap(v).toFixed(1)}" r="2.5" fill="#ff5670"/>`; }});
+  // 3-sigma line
+  s+=`<line x1="2" y1="${yMap(0.85).toFixed(1)}" x2="${W-2}" y2="${yMap(0.85).toFixed(1)}" stroke="#ff5670" stroke-dasharray="3 3" stroke-width="1" opacity="0.6"/>`;
+  svg.innerHTML=s;
+}
+function drawCausalDag(state){
+  const svg=document.getElementById("cs-dag-svg"); if(!svg) return;
+  // keep defs
+  const defs=svg.querySelector("defs");
+  svg.innerHTML=""; if(defs) svg.appendChild(defs);
+  // VB 600x320
+  const lines=[
+    [60,55,260,75],[60,140,260,170],[60,232,260,266],     // V→Node
+    [330,80,470,160],[330,170,470,160],[330,260,470,160]  // Node→Sys
+  ];
+  const ns="http://www.w3.org/2000/svg";
+  const color = state==="done"?"#28d17c":"#ff5670";
+  lines.forEach((l,k)=>{
+    const path=document.createElementNS(ns,"path");
+    const dx=(l[2]-l[0])*0.4;
+    path.setAttribute("d",`M${l[0]},${l[1]} C${l[0]+dx},${l[1]} ${l[2]-dx},${l[3]} ${l[2]},${l[3]}`);
+    path.setAttribute("fill","none");
+    path.setAttribute("stroke",color);
+    path.setAttribute("stroke-width","2");
+    path.setAttribute("stroke-dasharray","6 5");
+    path.setAttribute("marker-end", state==="done"?"url(#cs-arrow)":"url(#cs-arrow-r)");
+    path.style.animation="flowDash 1.4s linear infinite";
+    svg.appendChild(path);
+  });
+  // node states
+  const nodes=document.querySelectorAll(".cs-dnode");
+  nodes.forEach(n=>n.classList.remove("hot","green"));
+  if(state==="active"){
+    document.querySelectorAll(".cs-dnode.vol").forEach(n=>n.classList.add("hot"));
+    document.querySelectorAll(".cs-dnode.node").forEach(n=>n.classList.add("hot"));
+    document.getElementById("cs-d-sys")?.classList.add("hot");
+  }else if(state==="done"){
+    document.getElementById("cs-d-sys")?.classList.add("green");
+  }
+}
+function resetDag(){
+  const svg=document.getElementById("cs-dag-svg"); if(!svg) return;
+  const defs=svg.querySelector("defs");
+  svg.innerHTML=""; if(defs) svg.appendChild(defs);
+  document.querySelectorAll(".cs-dnode").forEach(n=>n.classList.remove("hot","green"));
+}
+function drawHist(){
+  const svg=document.getElementById("cs-hist-svg"); if(!svg) return;
+  const W=320,H=120;
+  // simulated histogram bars (system anomaly rate distribution under DMD)
+  const bars=[2,5,9,14,22,28,33,28,21,15,9,5,2];
+  const max=Math.max(...bars);
+  const bw=(W-30)/bars.length;
+  let s='';
+  s+=`<line x1="20" y1="${H-18}" x2="${W-6}" y2="${H-18}" stroke="#3d5b99"/>`;
+  bars.forEach((b,i)=>{
+    const h=(b/max)*(H-30);
+    const x=20+i*bw, y=H-18-h;
+    const recommended = i===5||i===6;
+    s+=`<rect x="${x+1}" y="${y}" width="${bw-2}" height="${h}" fill="${recommended?'#28d17c':'#23c7df'}" opacity="${recommended?0.85:0.5}"/>`;
+  });
+  // CI bracket
+  s+=`<line x1="${20+5*bw}" y1="${H-12}" x2="${20+7*bw}" y2="${H-12}" stroke="#fff" stroke-width="1.5"/>`;
+  s+=`<line x1="${20+5*bw}" y1="${H-15}" x2="${20+5*bw}" y2="${H-9}" stroke="#fff" stroke-width="1.5"/>`;
+  s+=`<line x1="${20+7*bw}" y1="${H-15}" x2="${20+7*bw}" y2="${H-9}" stroke="#fff" stroke-width="1.5"/>`;
+  s+=`<text x="${20+6*bw}" y="${H-2}" text-anchor="middle" font-size="9" fill="#a8f3cb" font-weight="700">CI 95%</text>`;
+  s+=`<text x="20" y="14" font-size="9" fill="#8fb3ff">系统异常率分布（DMD 推荐）</text>`;
+  svg.innerHTML=s;
+}
+function animatePlans(){
+  document.querySelectorAll(".cs-plan").forEach(p=>{
+    const fl=p.querySelector(".fl"); if(!fl) return;
+    const w=fl.getAttribute("data-tw"); fl.style.width=w+"%";
+  });
+}
+function litPipe(idx){
+  document.querySelectorAll("#cs-pipe .step").forEach((s,k)=>s.classList.toggle("lit",k<=idx));
+}
+
+/* =========================================================
+   STAGE 5 helpers — connectors
+   ========================================================= */
+function litLogicCard(id){
+  document.getElementById(id)?.classList.add("lit");
+  const card=document.getElementById(id); if(card){ card.style.boxShadow="0 0 22px rgba(79,140,255,.35)"; card.style.transform="translateY(-3px)"; }
+}
+function drawLogicConn(uptoIdx){
+  const grid=document.getElementById("lg-grid"); if(!grid) return;
+  const svg=document.getElementById("lg-conn-svg"); if(!svg) return;
+  const r0=grid.getBoundingClientRect();
+  svg.setAttribute("viewBox",`0 0 ${r0.width} ${r0.height}`);
+  svg.innerHTML="";
+  const ids=["lg-c0","lg-c1","lg-c2","lg-c3","lg-c4"];
+  const colors=["#4f8cff","#ff5670","#ffe066","#8b6cff","#28d17c"];
+  const labels=["统一长表","候选卷+热点","forecast_view","candidate_plans","执行决策"];
+  for(let k=0;k<ids.length-1;k++){
+    const a=document.getElementById(ids[k]);
+    const b=document.getElementById(ids[k+1]);
+    if(!a||!b) continue;
+    const ra=a.getBoundingClientRect(), rb=b.getBoundingClientRect();
+    const x1=ra.right-r0.left, y1=ra.top+ra.height/2-r0.top;
+    const x2=rb.left-r0.left,  y2=rb.top+rb.height/2-r0.top;
+    const ns="http://www.w3.org/2000/svg";
+    const path=document.createElementNS(ns,"path");
+    const cx=(x1+x2)/2;
+    path.setAttribute("d",`M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`);
+    path.setAttribute("class","flow");
+    path.setAttribute("stroke",colors[k]);
+    if(k>=uptoIdx) path.setAttribute("opacity","0.35");
+    svg.appendChild(path);
+    // label
+    const lbgw=labels[k].length*8+12, lbgh=18;
+    const lx=cx-lbgw/2, ly=(y1+y2)/2-lbgh/2;
+    const rect=document.createElementNS(ns,"rect");
+    rect.setAttribute("class","labbg");
+    rect.setAttribute("x",lx); rect.setAttribute("y",ly);
+    rect.setAttribute("width",lbgw); rect.setAttribute("height",lbgh);
+    rect.setAttribute("rx",6);
+    svg.appendChild(rect);
+    const txt=document.createElementNS(ns,"text");
+    txt.setAttribute("class","lab");
+    txt.setAttribute("x",cx); txt.setAttribute("y",(y1+y2)/2+3);
+    txt.setAttribute("text-anchor","middle");
+    txt.setAttribute("fill",colors[k]);
+    txt.textContent=labels[k];
+    svg.appendChild(txt);
+  }
+}
+
+/* redraw connectors on resize */
+window.addEventListener("resize",()=>{
+  if(activeStage==="logic") drawLogicConn(5);
+});
+
+/* =========================================================
+   SPEC MODAL
+   ========================================================= */
+const SPEC = `云计算存储智能均衡调度分析系统 · 项目展览版
+
+【整体链路】
+真实监控 → 多维负载检测 & 热点识别 → 负载预测 → 多目标调度 → 因果验证 → 云存储系统更新
+
+【Stage 1 — JUNHO JO · 多维负载检测与热点识别】
+INPUT  : 真实工业云存储监控（system / node / port），统一长表 D
+METHOD : Gini / HHI / Theil / Top1 + Median-MAD SPC + 持续窗口 + 负载门控 + Triplet metric learning
+        UCL = Median + k · 1.4826 · MAD
+        Hotspot = {imbalance > UCL} ∩ {persistent} ∩ {load_gate}
+        d_A(x_i,x_j)^2 = (x_i-x_j)^T A (x_i-x_j)
+        d(A,P) + margin < d(A,N)
+OUTPUT : Node 859 events / Port 370 events / 候选卷 Top-K
+KPI    : AUC 0.744→0.800 · Triplet Acc 0.592→0.777 · Distance Gap 0.080→1.787 · Learned-only +4243
+
+【Stage 2 — 林熙昊 · 负载预测】
+INPUT  : Stage 1 候选卷 + 历史时间序列
+METHOD : 特征 (zero_ratio / CV / slope / volatility / spike / periodicity) → 6 类分支
+        INA→SES, PER→Holt-Winters, SSP→Croston, HVL→RDR/TCN, STA→SES, CPX→TCN
+OUTPUT : forecast_view（未来曲线 + 风险窗口）
+KPI    : Avg R² 0.26→0.30 · HVL R² 0.19→0.25
+
+【Stage 3 — 凌海雯 · 多目标调度】
+INPUT  : Stage 1 热点节点 + Stage 2 forecast_view
+METHOD : DP-NSGA-II  min F = (cost, imbalance, risk)  s.t. capacity, business priority
+OUTPUT : candidate_plans = {DMA…DMG}（不直接执行）
+KPI    : imbalance 0.41→0.30 · cost 350 · 平均 2.8 epoch 收敛
+
+【Stage 4 — 梅元昊 · 因果驱动调度验证】
+INPUT  : candidate_plans + 三层（卷/节点/系统）历史
+METHOD : 异常检测（3σ 水平 + 差分 z-score 变化）→ 因果路径 (Volume→Node→System)
+        卷→节点 Deoxys 时间共现；节点→系统 OLS 滞后回归
+        Monte Carlo 模拟 → Bootstrap CI → 排序选优
+OUTPUT : 推荐 DMD：8.65% → 4.07%（改善 52.98%，CI [3.81%, 4.32%]）→ 通过 → 下发
+
+【UI 交互控制】
+每个阶段提供：▶ 播放 / ⏸ 暂停 / ◀◀ 上一步 / ▶▶ 下一步 / ↻ 重播；
+顶部支持：▶ 播放全链路；左上 tab 任意切换。
+`;
+function openSpec(){const m=document.getElementById("specMask"); document.getElementById("specBody").textContent=SPEC; m.classList.add("show");}
+function closeSpec(){document.getElementById("specMask").classList.remove("show");}
+function copySpec(){
+  navigator.clipboard.writeText(SPEC).then(()=>{
+    const b=event.target; const o=b.textContent; b.textContent="✅ 已复制"; setTimeout(()=>b.textContent=o,1500);
+  });
+}
+
+/* =========================================================
+   IO CARD COLLAPSE TOGGLE
+   ========================================================= */
+function toggleIO(headEl){
+  const iomn=headEl.nextElementSibling;
+  const collapsed=headEl.classList.toggle("collapsed");
+  if(iomn) iomn.classList.toggle("collapsed",collapsed);
+}
+
+/* =========================================================
+   SCREENSHOT MODE
+   ========================================================= */
+let shotOn=false;
+function toggleShot(){
+  shotOn=!shotOn;
+  document.body.classList.toggle("shot",shotOn);
+  const b=document.getElementById("shotBtn");
+  if(shotOn){
+    // freeze every stage animation + JS timers
+    STAGES.forEach(s=>pauseStage(s));
+    isPlayingAll=false; tdStopRotate();
+    if(b)b.textContent="✖ 退出截图模式";
+  }else{
+    if(b)b.textContent="📷 截图模式";
+  }
+}
+
+/* =========================================================
+   STAGE 6 — 3D helpers
+   ========================================================= */
+function tdInitVols(){
+  const wrap=document.getElementById("td-vols"); if(!wrap||wrap.childElementCount) return;
+  let s='';
+  for(let i=1;i<=20;i++){
+    s+=`<div class="cube td-vol" id="td-vol-V${i}" onclick="tdInfo('vol','${i}')">`+
+       `<div class="f fr">V${i}</div><div class="f bk"></div><div class="f lf"></div>`+
+       `<div class="f rt"></div><div class="f tp"></div><div class="f bt"></div>`+
+       `<div class="td-volchart"><svg viewBox="0 0 46 24" preserveAspectRatio="none"><polyline points="2,18 12,16 22,12 32,8 44,3" fill="none" stroke="#ffb84d" stroke-width="1.6"/></svg></div>`+
+       `</div>`;
+  }
+  wrap.innerHTML=s;
+}
+function tdReqFlow(on){
+  const f=document.getElementById("td-reqflow"); if(f) f.classList.toggle("run",!!on);
+}
+function tdBadge(t){ const b=document.getElementById("td-stagebadge"); if(b) b.textContent=t; }
+function tdNode(letter,state,pct){
+  const n=document.getElementById("td-node-"+letter); if(!n) return;
+  n.setAttribute("data-state",state);
+  const p=document.getElementById("td-node-"+letter+"-pct"); if(p) p.textContent=pct+"%";
+}
+function tdPorts(map){
+  // port ids that actually exist on node front faces: 1-8
+  for(let i=1;i<=8;i++){
+    const p=document.getElementById("td-p-"+i); if(p) p.setAttribute("data-state",map[i]||"cool");
+  }
+}
+function tdSys(o,alerts){
+  const setK=(id,v)=>{const el=document.getElementById(id); if(el){const b=el.querySelector("b"); if(b)b.textContent=v;}};
+  if(o.imb)  setK("td-sys-imb",o.imb);
+  if(o.risk) setK("td-sys-risk",o.risk);
+  if(o.ucl)  setK("td-sys-ucl",o.ucl);
+  if(o.top1) setK("td-sys-top1",o.top1);
+  ["imb","risk","ucl","top1"].forEach(k=>{
+    const el=document.getElementById("td-sys-"+k); if(el) el.classList.toggle("alert",!!(alerts&&alerts.includes(k)));
+  });
+}
+function tdSysStatus(st){
+  const el=document.getElementById("td-sys-status"); if(el){ el.textContent=st; el.setAttribute("data-s",st); }
+  const dash=document.getElementById("td-dashboard");
+  const pool=document.getElementById("td-pool");
+  [dash,pool].forEach(x=>{ if(x){ x.classList.remove("warn","hot","green");
+    if(st==="Warning")x.classList.add("warn");
+    else if(st==="Hotspot")x.classList.add("hot");
+    else if(st==="Verified")x.classList.add("green");
+  }});
+}
+function tdCandVols(on){
+  TD_CFG.candVols.forEach((v,k)=>{
+    const idx=v.replace("V","");
+    const el=document.getElementById("td-vol-V"+idx);
+    if(el){ el.classList.toggle("cand",!!on); el.classList.toggle("show-chart",!!on&&idx==="14"); }
+  });
+}
+function tdPhase(ph){
+  document.querySelectorAll("#td-phase .p").forEach(p=>p.classList.toggle("active",p.dataset.ph===ph));
+}
+/* big current-phase badge */
+const TD_PHASE_NAMES={detect:"① 检测热点",forecast:"② 预测未来负载",schedule:"③ 生成调度方案",causal:"④ 因果验证",update:"⑤ 系统更新",idle:"待开始"};
+function tdPhaseBadge(ph,name,ico){
+  const b=document.getElementById("td-phasebadge"); if(!b) return;
+  b.setAttribute("data-ph",ph||"idle");
+  const nm=document.getElementById("td-phase-nm"); if(nm) nm.textContent=name||TD_PHASE_NAMES[ph]||"—";
+  const ic=document.getElementById("td-phase-ico"); if(ic&&ico) ic.textContent=ico;
+  // bump animation
+  b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump");
+}
+/* IPO panel update */
+function tdIPO(o){
+  if(!o) return;
+  const set=(id,v)=>{const e=document.getElementById(id); if(e&&v!=null) e.textContent=v;};
+  set("td-ipo-in",o.in);
+  set("td-ipo-method-plain",o.methodP);
+  set("td-ipo-method",o.method);
+  set("td-ipo-out",o.out);
+  set("td-ipo-next",o.next);
+}
+/* per-step meta: badge + phase row + ipo (called before apply) */
+function tdStepMeta(step){
+  if(!step) return;
+  tdPhase(step.phase==="idle"?null:step.phase);
+  tdPhaseBadge(step.phase, step.phaseName, step.ico);
+  tdIPO(step.ipo);
+}
+/* balanced pulse on system layer */
+function tdBalanced(on){
+  document.getElementById("td-scene")?.classList.toggle("balanced",!!on);
+}
+/* causal overlay in 3D scene */
+function tdCausal(state){
+  const c=document.getElementById("td-causal"); if(!c) return;
+  const mc=document.getElementById("td-causal-mc");
+  c.classList.remove("show","pass");
+  if(state==="show"){ c.classList.add("show"); if(mc){mc.textContent="Monte Carlo 模拟中…"; mc.classList.add("running");} }
+  else if(state==="pass"){ c.classList.add("show","pass"); if(mc){mc.textContent="模拟完成 ✓ DMD 8.65%→4.07%"; mc.classList.remove("running");} }
+  else { if(mc){mc.textContent="Monte Carlo 模拟中…"; mc.classList.remove("running");} }
+}
+
+/* ---- data-flow overlay (SVG path + moving particles) ---- */
+function tdFlow(kind){
+  const svg=document.getElementById("td-flow-svg"); if(!svg) return;
+  svg.innerHTML="";
+  if(!kind) return;
+  // screen-space anchor points (viewBox 0..600). The 3D scene center ~ (300,300).
+  const P={
+    lb:[20,300], nodeC:[300,250], port6:[330,330], cand:[300,420],
+    sysC:[300,150], forecast:[560,250], srcHosts:[230,300], tgtHosts:[370,300],
+    causal:[300,120], allSys:[300,300]
+  };
+  const flows={
+    ingress:[["lb","allSys","#4f8cff"]],
+    balanced:[["lb","nodeC","#4f8cff"]],
+    concentrate:[["lb","nodeC","#ff5670"]],
+    port6:[["nodeC","port6","#ff7a55"]],
+    candidate:[["port6","cand","#ffb84d"]],
+    forecast:[["cand","forecast","#ffe066"]],
+    migrate:[["srcHosts","tgtHosts","#8b6cff"]],
+    causal:[["cand","causal","#28d17c"]],
+    recover:[["causal","allSys","#28d17c"]]
+  };
+  const arr=flows[kind]||[];
+  arr.forEach((f,idx)=>{
+    const a=P[f[0]], b=P[f[1]], col=f[2];
+    const mx=(a[0]+b[0])/2, my=Math.min(a[1],b[1])-40;
+    const d=`M${a[0]},${a[1]} Q${mx},${my} ${b[0]},${b[1]}`;
+    const ns="http://www.w3.org/2000/svg";
+    const path=document.createElementNS(ns,"path");
+    path.setAttribute("d",d); path.setAttribute("fill","none");
+    path.setAttribute("stroke",col); path.setAttribute("stroke-width","2.5");
+    path.setAttribute("stroke-dasharray","7 6"); path.setAttribute("opacity","0.7");
+    path.setAttribute("id","td-flowpath-"+idx);
+    path.style.animation="flowDash 1s linear infinite";
+    svg.appendChild(path);
+    // moving particles along the path
+    for(let p=0;p<3;p++){
+      const dot=document.createElementNS(ns,"circle");
+      dot.setAttribute("r","4"); dot.setAttribute("fill",col);
+      dot.setAttribute("filter","");
+      const mo=document.createElementNS(ns,"animateMotion");
+      mo.setAttribute("dur","1.8s"); mo.setAttribute("repeatCount","indefinite");
+      mo.setAttribute("begin",(p*0.6)+"s");
+      mo.setAttribute("path",d);
+      dot.appendChild(mo);
+      svg.appendChild(dot);
+    }
+  });
+}
+
+/* ---- 2D mini panel (calculation evidence) ---- */
+function tdMini(kind,stepNo){
+  const title=document.getElementById("td-mini-title");
+  const chart=document.getElementById("td-mini-chart");
+  if(!chart) return;
+  if(!kind){ if(title)title.textContent="2D 计算依据"; chart.innerHTML='<div class="empty">播放后在此显示当前步骤的计算/判定依据</div>'; return; }
+  if(kind==="ucl"){
+    if(title)title.textContent="imbalance score vs Median-MAD UCL";
+    chart.innerHTML=tdMiniUCL(stepNo);
+  }else if(kind==="forecast"){
+    if(title)title.textContent="候选卷未来曲线 + 风险窗口";
+    chart.innerHTML=tdMiniForecast();
+  }else if(kind==="migrate"){
+    if(title)title.textContent="迁移前后负载对比 (before / after)";
+    chart.innerHTML=tdMiniMigrate();
+  }else if(kind==="montecarlo"){
+    if(title)title.textContent="Monte Carlo 系统异常率分布 (DMD)";
+    chart.innerHTML=tdMiniMonteCarlo();
+  }
+}
+function tdMiniUCL(stepNo){
+  const W=240,H=110, uclY=46;
+  const pts=[0.16,0.18,0.17,0.19,0.22,0.20,0.12,0.24,0.28,0.33,0.30,0.36,0.40,0.41];
+  const spikeIdx=6; // short spike filtered
+  const xs=i=>14+i*(W-22)/(pts.length-1);
+  const ys=v=>H-16-(v/0.5)*(H-30);
+  let s=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+  // UCL line
+  s+=`<line x1="10" y1="${ys(0.32)}" x2="${W-6}" y2="${ys(0.32)}" stroke="#ff5670" stroke-dasharray="4 3" stroke-width="1.4"/>`;
+  s+=`<text x="${W-8}" y="${ys(0.32)-3}" text-anchor="end" font-size="8" fill="#ff8095">UCL 0.32</text>`;
+  // persistent window shade (after step>=4)
+  if(stepNo>=4){
+    s+=`<rect x="${xs(9)}" y="6" width="${xs(13)-xs(9)}" height="${H-22}" fill="#ff5670" opacity="0.13"/>`;
+    s+=`<text x="${xs(11)}" y="14" text-anchor="middle" font-size="8" fill="#ffb6c1">persistent 保留</text>`;
+  }
+  // short spike marker (filtered)
+  s+=`<rect x="${xs(spikeIdx)-6}" y="6" width="12" height="${H-22}" fill="#9aa8c7" opacity="0.14"/>`;
+  s+=`<text x="${xs(spikeIdx)}" y="${ys(0.12)+10}" text-anchor="middle" font-size="7.5" fill="#9aa8c7">spike 过滤</text>`;
+  // imbalance curve
+  let d='';
+  pts.forEach((v,i)=>{ d+=(i?"L":"M")+xs(i).toFixed(1)+","+ys(v).toFixed(1); });
+  s+=`<path d="${d}" fill="none" stroke="#ffb84d" stroke-width="2"/>`;
+  // markers above UCL
+  pts.forEach((v,i)=>{ if(v>0.32 && i!==spikeIdx){ s+=`<circle cx="${xs(i).toFixed(1)}" cy="${ys(v).toFixed(1)}" r="2.6" fill="#ff5670"/>`; }});
+  s+=`</svg>`;
+  return s;
+}
+function tdMiniForecast(){
+  const W=240,H=110,nowX=130;
+  let s=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+  // risk window
+  s+=`<rect x="${nowX+34}" y="6" width="56" height="${H-22}" fill="#ff5670" opacity="0.16"/>`;
+  s+=`<text x="${nowX+62}" y="15" text-anchor="middle" font-size="8" fill="#ffb6c1">风险窗口</text>`;
+  // hist
+  let h='';for(let i=0;i<26;i++){const v=0.3+0.04*Math.sin(i*0.5)+i*0.004;h+=(i?"L":"M")+(14+i*(nowX-14)/25).toFixed(1)+","+(H-16-v*120).toFixed(1);}
+  s+=`<path d="${h}" fill="none" stroke="#4f8cff" stroke-width="2"/>`;
+  // now line
+  s+=`<line x1="${nowX}" y1="6" x2="${nowX}" y2="${H-12}" stroke="#23c7df" stroke-dasharray="3 3" stroke-width="1.3"/>`;
+  s+=`<text x="${nowX+3}" y="14" font-size="8" fill="#23c7df">now</text>`;
+  // future (rising)
+  let f='';for(let i=0;i<22;i++){const v=0.42+i*0.014+0.05*Math.sin(i*0.6);f+=(i?"L":"M")+(nowX+i*(W-nowX-8)/21).toFixed(1)+","+(H-16-v*120).toFixed(1);}
+  s+=`<path d="${f}" fill="none" stroke="#ffb84d" stroke-width="2.2" stroke-dasharray="6 4"/>`;
+  s+=`</svg>`;
+  return s;
+}
+function tdMiniMigrate(){
+  const W=240,H=110;
+  const rows=[["host-j19",88,62],["host-j13",38,55],["imbalance",82,60]];
+  let s=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+  rows.forEach((r,i)=>{
+    const y=14+i*32;
+    s+=`<text x="6" y="${y+8}" font-size="8.5" fill="#9aa8c7">${r[0]}</text>`;
+    // before
+    s+=`<rect x="70" y="${y}" width="${r[1]*1.5}" height="9" rx="3" fill="#ff5670" opacity="0.7"/>`;
+    s+=`<text x="${70+r[1]*1.5+4}" y="${y+8}" font-size="7.5" fill="#ffb6c1">before</text>`;
+    // after
+    s+=`<rect x="70" y="${y+13}" width="${r[2]*1.5}" height="9" rx="3" fill="#28d17c" opacity="0.8"/>`;
+    s+=`<text x="${70+r[2]*1.5+4}" y="${y+21}" font-size="7.5" fill="#a8f3cb">after</text>`;
+  });
+  s+=`<text x="6" y="${H-3}" font-size="8" fill="#8fb3ff">imbalance 0.41 → 0.30 · cost 350</text>`;
+  s+=`</svg>`;
+  return s;
+}
+function tdMiniMonteCarlo(){
+  const W=240,H=110;
+  const bars=[2,5,9,15,23,29,33,28,20,13,8,4,2];
+  const max=Math.max(...bars), bw=(W-24)/bars.length;
+  let s=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+  s+=`<line x1="14" y1="${H-16}" x2="${W-6}" y2="${H-16}" stroke="#3d5b99"/>`;
+  bars.forEach((b,i)=>{
+    const hh=(b/max)*(H-30), x=14+i*bw, y=H-16-hh;
+    const rec=(i===5||i===6);
+    s+=`<rect x="${x+1}" y="${y}" width="${bw-2}" height="${hh}" fill="${rec?'#28d17c':'#23c7df'}" opacity="${rec?0.9:0.5}"/>`;
+  });
+  // CI bracket
+  s+=`<line x1="${14+5*bw}" y1="${H-10}" x2="${14+7*bw}" y2="${H-10}" stroke="#fff" stroke-width="1.4"/>`;
+  s+=`<text x="${14+6*bw}" y="${H-2}" text-anchor="middle" font-size="7.5" fill="#a8f3cb">CI [3.81,4.32]</text>`;
+  s+=`<text x="14" y="12" font-size="8" fill="#8fb3ff">DMD 8.65% → 4.07%</text>`;
+  s+=`</svg>`;
+  return s;
+}
+
+function tdMigrate(){
+  const scene=document.getElementById("td-scene-wrap"); if(!scene) return;
+  const rScene=scene.getBoundingClientRect();
+  const pairs=[{v:"V5",tgt:"td-node-A"},{v:"V14",tgt:"td-node-B"},{v:"V9",tgt:"td-node-C"}];
+  TD_CFG.migrate.forEach(v=>{ const idx=v.replace("V",""); document.getElementById("td-vol-V"+idx)?.classList.add("fly"); });
+  pairs.forEach((p,k)=>{
+    setTimeout(()=>{
+      const idx=p.v.replace("V","");
+      const src=document.getElementById("td-vol-V"+idx);
+      const tgt=document.getElementById(p.tgt);
+      if(!src||!tgt) return;
+      const sR=src.getBoundingClientRect(), tR=tgt.getBoundingClientRect();
+      const fly=document.createElement("div"); fly.className="td-flying"; fly.textContent=p.v;
+      scene.appendChild(fly);
+      fly.style.left=(sR.left-rScene.left+sR.width/2-18)+"px";
+      fly.style.top=(sR.top-rScene.top+sR.height/2-10)+"px";
+      requestAnimationFrame(()=>{
+        fly.style.left=(tR.left-rScene.left+tR.width/2-18)+"px";
+        fly.style.top=(tR.top-rScene.top+tR.height/2-10)+"px";
+      });
+      setTimeout(()=>fly.classList.add("arrive"),1350);
+      setTimeout(()=>fly.remove(),2300);
+    },k*320);
+  });
+}
+
+/* ---- 3D view: drag rotate + wheel zoom + buttons ---- */
+const tdView_={rotateX:58, rotateY:0, rotateZ:0, scale:1, dragging:false, lastX:0, lastY:0};
+function tdApplyView(){
+  const scene=document.getElementById("td-scene");
+  if(scene) scene.style.transform=`rotateX(${tdView_.rotateX}deg) rotateY(${tdView_.rotateY}deg) rotateZ(${tdView_.rotateZ}deg) scale(${tdView_.scale})`;
+}
+function tdView(dir){
+  if(dir==="left")  tdView_.rotateY-=30;
+  else if(dir==="right") tdView_.rotateY+=30;
+  else if(dir==="top"){ tdView_.rotateX=18; tdView_.rotateY=0; tdView_.rotateZ=0; }
+  else if(dir==="reset"){ tdView_.rotateX=58; tdView_.rotateY=0; tdView_.rotateZ=0; tdView_.scale=1; }
+  tdApplyView();
+}
+function tdInitDrag(){
+  const wrap=document.getElementById("td-scene-wrap"); const scene=document.getElementById("td-scene");
+  if(!wrap||!scene||wrap.dataset.dragInit) return;
+  wrap.dataset.dragInit="1";
+  wrap.addEventListener("mousedown",e=>{
+    if(e.target.closest(".td-node,.td-port,.td-vol,.td-sys-status,.td-pop,.td-parts,.td-dashboard")) return; // let clicks work
+    tdView_.dragging=true; tdView_.lastX=e.clientX; tdView_.lastY=e.clientY;
+    wrap.classList.add("grabbing"); scene.classList.add("dragging");
+    if(tdRotateOn) tdPauseRotate();
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove",e=>{
+    if(!tdView_.dragging) return;
+    const dx=e.clientX-tdView_.lastX, dy=e.clientY-tdView_.lastY;
+    tdView_.lastX=e.clientX; tdView_.lastY=e.clientY;
+    tdView_.rotateY+=dx*0.4;
+    tdView_.rotateX-=dy*0.25;
+    tdView_.rotateX=Math.max(-20,Math.min(90,tdView_.rotateX));
+    tdApplyView();
+  });
+  window.addEventListener("mouseup",()=>{
+    if(!tdView_.dragging) return;
+    tdView_.dragging=false;
+    wrap.classList.remove("grabbing"); scene.classList.remove("dragging");
+  });
+  wrap.addEventListener("wheel",e=>{
+    e.preventDefault();
+    const delta=e.deltaY<0?0.08:-0.08;
+    tdView_.scale=Math.max(0.65,Math.min(1.45,tdView_.scale+delta));
+    tdApplyView();
+  },{passive:false});
+}
+
+/* auto rotate (RAF) — pauses on drag */
+let tdRotateOn=false, tdRotateRAF=null;
+function tdToggleRotate(){
+  tdRotateOn=!tdRotateOn;
+  const b=document.getElementById("td-rotate-btn");
+  if(tdRotateOn){
+    if(b){b.textContent="自动旋转 ON";b.classList.add("on");}
+    const scene=document.getElementById("td-scene"); if(scene) scene.style.transition="none";
+    function spin(){
+      if(!tdRotateOn) return;
+      tdView_.rotateY=(tdView_.rotateY+0.3)%360;
+      tdApplyView();
+      tdRotateRAF=requestAnimationFrame(spin);
+    }
+    spin();
+  }else{ tdStopRotate(); }
+}
+function tdPauseRotate(){ // temporary pause while dragging (keeps button ON state visually off)
+  tdRotateOn=false;
+  if(tdRotateRAF){cancelAnimationFrame(tdRotateRAF); tdRotateRAF=null;}
+  const b=document.getElementById("td-rotate-btn"); if(b){b.textContent="自动旋转 OFF";b.classList.remove("on");}
+  const scene=document.getElementById("td-scene"); if(scene) scene.style.transition="transform .6s ease";
+}
+function tdStopRotate(){
+  tdRotateOn=false;
+  if(tdRotateRAF){cancelAnimationFrame(tdRotateRAF); tdRotateRAF=null;}
+  const b=document.getElementById("td-rotate-btn"); if(b){b.textContent="自动旋转 OFF";b.classList.remove("on");}
+  const scene=document.getElementById("td-scene"); if(scene) scene.style.transition="transform .6s ease";
+}
+
+/* explain mode (讲解 / 技术) */
+function tdMode(m){
+  document.body.classList.toggle("td-tech",m==="tech");
+  document.getElementById("td-mode-tech")?.classList.toggle("on",m==="tech");
+  document.getElementById("td-mode-jiang")?.classList.toggle("on",m==="jiang");
+}
+
+/* click object info popover (detailed) */
+const TD_INFO={
+  node:{
+    A:{title:"Node A",rows:[["层级","节点层"],["当前负载","42%"],["状态","正常"],["触发原因","—"],["下游影响","—"]]},
+    B:{title:"Node B",rows:[["层级","节点层"],["当前负载","51%"],["状态","正常"],["触发原因","—"],["下游影响","—"]]},
+    C:{title:"Node C",rows:[["层级","节点层"],["当前负载","91%"],["状态","🔥 Hotspot"],["触发原因","Top1 Share / HHI 上升"],["下游影响","候选卷 V3/V5/V14/V9 抽取"]]}
+  },
+  port:{
+    "6":{title:"Port 6",rows:[["层级","端口层"],["所属节点","Node C"],["状态","🔥 Hotspot"],["触发指标","latency / throughput / Top1 贡献"],["说明","局部传输压力集中"]]}
+  },
+  vol:{
+    "3":{title:"V3",rows:[["层级","存储卷层"],["来源","Stage 1 候选卷"],["预测结果","+47% 突发 (SSP)"],["调度目标","—"],["验证状态","—"]]},
+    "5":{title:"V5",rows:[["层级","存储卷层"],["来源","Stage 1 候选卷"],["预测结果","峰值 t+18h (PER)"],["调度目标","host-j13"],["验证状态","DMD 方案通过"]]},
+    "14":{title:"V14",rows:[["层级","存储卷层"],["来源","Stage 1 候选卷"],["预测结果","+62% 上升 (HVL)"],["调度目标","host-j97"],["验证状态","DMD 方案通过"]]},
+    "9":{title:"V9",rows:[["层级","存储卷层"],["来源","Stage 1 候选卷"],["预测结果","+5% 平稳 (STA)"],["调度目标","host-j81"],["验证状态","DMD 方案通过"]]}
+  },
+  sys:{
+    "":{title:"System Layer",rows:[["层级","系统层"],["imbalance","0.41 → 0.30"],["risk","8.65% → 4.07%"],["UCL","0.32"],["status","Verified / Balanced"]]}
+  }
+};
+function tdInfo(type,key){
+  const data=TD_INFO[type]?.[key];
+  const pop=document.getElementById("td-pop"); const body=document.getElementById("td-pop-body");
+  if(!pop||!body) return;
+  if(!data){
+    body.innerHTML=`<h6>${type==='vol'?'V'+key:type==='port'?'Port '+key:key}</h6>`+
+      `<div class="r"><span class="n">层级</span><span class="v">${type==='vol'?'存储卷层':type==='port'?'端口层':'节点层'}</span></div>`+
+      `<div class="r"><span class="n">状态</span><span class="v">正常</span></div>`;
+  }else{
+    body.innerHTML=`<h6>${data.title}</h6>`+data.rows.map(r=>`<div class="r"><span class="n">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
+  }
+  pop.style.left="50%"; pop.style.top="46%"; pop.style.transform="translate(-50%,-50%)";
+  pop.classList.add("show");
+}
+function tdClosePop(){ document.getElementById("td-pop")?.classList.remove("show"); }
+
+/* highlight a whole architecture part (red) in the main model + its part-cube */
+function tdHighlightPart(part,on){
+  const cube=document.querySelector(`.part-cube.${part}`);
+  if(cube) cube.classList.toggle("lit",!!on);
+  let els=[];
+  if(part==="sys"){ els=[document.getElementById("td-dashboard"),document.getElementById("td-pool")]; }
+  else if(part==="node"){ els=[...document.querySelectorAll(".td-node")]; }
+  else if(part==="port"){ els=[...document.querySelectorAll(".td-port")]; }
+  else if(part==="vol"){ els=[...document.querySelectorAll(".td-vol")]; }
+  els.forEach(e=>{ if(e) e.classList.toggle("parthi",!!on); });
+}
+/* click a part-cube → spin it once */
+function tdSpinPart(el){
+  el.classList.remove("spin"); void el.offsetWidth; el.classList.add("spin");
+}
+
+
+
+/* =========================================================
+   INIT
+   ========================================================= */
+window.addEventListener("load",()=>{
+  tdInitVols();
+  // initial reset of all stages so each is at t0
+  STAGES.forEach(s=>resetStage(s));
+  // ensure overview is shown
+  showStage("overview");
+});
+</script>
+</body>
+</html>
